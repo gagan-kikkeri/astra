@@ -112,7 +112,7 @@
       <div class="flex items-center space-x-2 text-xs font-mono">
         <div id="engineModeContainer" class="flex items-center space-x-1.5">
           <span id="engineBadge" class="px-2.5 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold text-[11px] shadow-sm shadow-emerald-950">
-            ● ENGINE: GEMINI-2.5-FLASH [ONLINE]
+            ● ENGINE: ASTRA-CORE [ONLINE]
           </span>
           <button id="engineRetryBtn" onclick="testEngineConnectivity()" class="hidden px-2 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 text-[10px] font-bold">
             [RETRY]
@@ -198,7 +198,7 @@
     </div>
 
     <!-- ======================================================================= -->
-    <!-- 2. TWO-COLUMN OPERATIONAL WORKSPACE (Input & Wire | Gemini Console)      -->
+    <!-- 2. TWO-COLUMN OPERATIONAL WORKSPACE (Input & Wire | Intelligence Console) -->
     <!-- ======================================================================= -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
@@ -295,11 +295,11 @@
               <span>🖼️</span>
             </div>
             <p id="dropZoneSubtitle" class="text-[10px] text-slate-500 font-mono">
-              Auto-extract PDF text or execute Gemini Multimodal Computer Vision on imagery
+              Auto-extract PDF text or execute Multimodal Computer Vision on imagery
             </p>
             <div id="uploadProgressContainer" class="hidden text-xs font-mono text-emerald-400 pt-1 flex items-center justify-center space-x-2">
               <span class="animate-spin">⚡</span>
-              <span id="uploadProgressText">Extracting multimodal telemetry via Gemini...</span>
+              <span id="uploadProgressText">Extracting multimodal telemetry via Neural Vision...</span>
             </div>
           </div>
         </section>
@@ -333,11 +333,11 @@
               <span class="w-2 h-2 bg-amber-400 rounded-full"></span>
               <span>CROSS-DOCUMENT INTEL CONSOLE</span>
             </h2>
-            <span class="text-[10px] text-amber-400/80 font-mono">GEMINI RAG SYNTHESIS</span>
+            <span class="text-[10px] text-amber-400/80 font-mono">AUTONOMOUS RAG SYNTHESIS</span>
           </div>
 
           <p class="text-xs text-slate-400 leading-relaxed font-sans">
-            Query across all stored dispatches. The agent queries SQLite FTS5, injects ground truth context into Gemini 2.5 Flash, and reconstructs cross-cutting platforms, timelines, and assessments.
+            Query across all stored dispatches. The agent queries SQLite FTS5, injects ground truth context into the neural synthesis core, and reconstructs cross-cutting platforms, timelines, and assessments.
           </p>
 
           <!-- Inquiry Input -->
@@ -360,7 +360,7 @@
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
               </span>
-              <span id="synthLabel">[QUERY GEMINI INTELLIGENCE]</span>
+              <span id="synthLabel">[QUERY CROSS-INTELLIGENCE]</span>
             </button>
           </div>
 
@@ -381,7 +381,7 @@
             </div>
             <div id="trace-step-3" class="flex items-center space-x-2 text-slate-400">
               <span id="trace-3-icon">○</span>
-              <span>3. Gemini 2.5 Flash synthesizing cross-cutting intelligence dossier...</span>
+              <span>3. Neural core synthesizing cross-cutting intelligence dossier...</span>
             </div>
           </div>
 
@@ -518,7 +518,7 @@
         const res = await fetch('/api/engine-status');
         if (res.ok) {
           const data = await res.json();
-          badge.innerHTML = `● ENGINE: ${data.model || 'GEMINI-2.5-FLASH'} [ONLINE]`;
+          badge.innerHTML = '● ENGINE: ASTRA-CORE [ONLINE]';
           badge.className = 'px-2.5 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold text-[11px] shadow-sm shadow-emerald-950';
           if (retryBtn) retryBtn.classList.add('hidden');
           if (dot) dot.className = 'w-2.5 h-2.5 bg-brand-emerald rounded-full status-pulse';
@@ -527,14 +527,14 @@
 
         const hRes = await fetch('/api/health');
         if (hRes.ok) {
-          badge.innerHTML = '● ENGINE: GEMINI-2.5-FLASH [ONLINE]';
+          badge.innerHTML = '● ENGINE: ASTRA-CORE [ONLINE]';
           badge.className = 'px-2.5 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold text-[11px] shadow-sm shadow-emerald-950';
           if (retryBtn) retryBtn.classList.add('hidden');
           if (dot) dot.className = 'w-2.5 h-2.5 bg-brand-emerald rounded-full status-pulse';
           return;
         }
       } catch (e) {
-        badge.innerHTML = '● ENGINE: GEMINI-2.5-FLASH [ONLINE]';
+        badge.innerHTML = '● ENGINE: ASTRA-CORE [ONLINE]';
         badge.className = 'px-2.5 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold text-[11px] shadow-sm shadow-emerald-950';
         if (retryBtn) retryBtn.classList.add('hidden');
         if (dot) dot.className = 'w-2.5 h-2.5 bg-brand-emerald rounded-full status-pulse';
@@ -859,7 +859,7 @@
 
       progressContainer.classList.remove('hidden');
       dropSubtitle.classList.add('hidden');
-      progressText.textContent = `Extracting multimodal telemetry from ${file.name} via Gemini...`;
+      progressText.textContent = `Extracting multimodal telemetry from ${file.name}...`;
 
       const formData = new FormData();
       formData.append('file', file);
