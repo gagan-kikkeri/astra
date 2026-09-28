@@ -4,6 +4,7 @@ Handles deterministic hashing, collision prevention, network error reporting,
 and the autonomous agent 4-step execution flow.
 """
 
+import os
 import re
 import time
 import uuid
@@ -36,6 +37,14 @@ try:
     GENAI_AVAILABLE = True
 except ImportError:
     GENAI_AVAILABLE = False
+
+
+def get_genai_client():
+    """Initializes Google GenAI client reading key from settings or environment."""
+    api_key = settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
+    if api_key:
+        return genai.Client(api_key=api_key)
+    return genai.Client()
 
 
 def compute_content_hash(title: str, content: str) -> str:
@@ -108,17 +117,14 @@ def fetch_url_payload(url: str) -> Tuple[str, str, str]:
     # Extract Title from HTML
     title_match = re.search(r'<title[^>]*>(.*?)</title>', html_text, re.IGNORECASE)
     title = title_match.group(1).strip() if title_match else f"OSINT Report from {domain}"
-    # Clean HTML entities from title
-    title = re.sub(r'\s*[-|]\s*[^| -]+$', '', title)  # Remove site name suffix
+    title = re.sub(r'\s*[-|]\s*[^| -]+$', '', title)
 
     # Strip script and style blocks
     cleaned = re.sub(r'<(script|style)[^>]*>.*?</\1>', '', html_text, flags=re.DOTALL | re.IGNORECASE)
-    # Strip HTML tags
     cleaned = re.sub(r'<[^>]+>', ' ', cleaned)
-    # Normalize whitespaces
     content = re.sub(r'\s+', ' ', cleaned).strip()
 
-    if len(content) < 40:
+    if len(content) < 20:
         raise HTTPException(
             status_code=400,
             detail=f"Insufficient readable text extracted from '{url}'. Page may require JavaScript or authentication. Please paste text directly."
@@ -130,7 +136,7 @@ def fetch_url_payload(url: str) -> Tuple[str, str, str]:
 def rule_based_triage(title: str, content: str) -> StructuredExtraction:
     """
     Deterministic rule-based intelligence classifier.
-    Used when GEMINI_API_KEY is not configured.
+    Used when GEMINI_API_KEY is not configured or in offline mode.
     Ensures the system is self-healing, defensive, and fully operational offline.
     """
     text_corpus = f"{title} {content}".lower()
@@ -178,7 +184,6 @@ def rule_based_triage(title: str, content: str) -> StructuredExtraction:
         score = sum(1 for kw in keywords if kw in text_corpus)
         category_scores[cat] = score
 
-    # Select highest category, default to "Defence Technology"
     best_category: CategoryEnum = "Defence Technology"
     best_score = 0
     for cat, score in category_scores.items():
@@ -221,7 +226,6 @@ def rule_based_triage(title: str, content: str) -> StructuredExtraction:
         if entity.lower() in text_corpus:
             detected_entities.append(entity)
 
-    # Heuristic for capitalized multi-word or acronym terms
     raw_acronyms = re.findall(r'\b[A-Z]{2,6}(?:-[A-Z0-9]+)?\b', f"{title} {content}")
     for acr in raw_acronyms:
         if acr not in ["THE", "AND", "FOR", "WITH", "THAT", "FROM", "INTO"] and acr not in detected_entities:
@@ -230,7 +234,6 @@ def rule_based_triage(title: str, content: str) -> StructuredExtraction:
     if not detected_entities:
         detected_entities = ["ASTRA-HQ", "OSINT-UNIT"]
 
-    # Deduplicate entities while preserving order
     unique_entities = list(dict.fromkeys(detected_entities))[:6]
 
     # 4. Keyword Normalization
@@ -245,7 +248,7 @@ def rule_based_triage(title: str, content: str) -> StructuredExtraction:
 
     normalized_keywords = [re.sub(r'[^a-zA-Z0-9\-]', '', k).lower() for k in candidate_keywords[:5]]
 
-    # 5. Executive Summary (Strictly 2 sentences)
+    # 5. Executive Summary (Exactly 2 sentences)
     summary_text = extract_sentences(content, count=2)
 
     return StructuredExtraction(
@@ -260,6 +263,7 @@ def rule_based_triage(title: str, content: str) -> StructuredExtraction:
 def triage_with_gemini(title: str, content: str) -> Tuple[StructuredExtraction, str]:
     """
     Invokes Google GenAI SDK (gemini-2.5-flash) with strict Pydantic structured output.
+    Wraps in retry handler with exponential backoff catching exceptions and timeouts.
     If network connectivity fails when GEMINI_API_KEY is configured, raises a clear
     HTTPException with connection diagnostics rather than silently falling back.
     Returns: (StructuredExtraction, engine_name)
@@ -270,20 +274,12 @@ def triage_with_gemini(title: str, content: str) -> Tuple[StructuredExtraction, 
 
     max_retries = 3
     base_backoff = 1.0
-
-    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    client = get_genai_client()
     
-    prompt = (
-        "You are ASTRA SENTINEL, a tactical defence intelligence triage engine. "
-        "Analyze the following defence intelligence dispatch and produce a structured extraction.\n\n"
-        f"TITLE: {title}\n\n"
-        f"CONTENT:\n{content}\n\n"
-        "STRICT REQUIREMENTS:\n"
-        "1. category: Choose exactly one from ['Aerospace', 'Naval', 'Land Systems', 'Cybersecurity', 'Space', 'AI/Robotics', 'Defence Technology']\n"
-        "2. executive_summary: Exactly 2 concise, factual sentences summarizing the tactical threat and technological capability.\n"
-        "3. threat_impact: Choose exactly one from ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']\n"
-        "4. keywords: 3 to 6 normalized tags (e.g. ['hypersonic', 'aesa-radar', 'countermeasure'])\n"
-        "5. entities: Military platforms, nations, or organizations (e.g. ['DRDO', 'LCA-Tejas', 'IAF', 'MDA'])\n"
+    contents = (
+        f"Analyze and extract structured intelligence from this defence article:\n\n"
+        f"Title: {title}\n\n"
+        f"Content: {content}"
     )
 
     last_error = None
@@ -296,7 +292,7 @@ def triage_with_gemini(title: str, content: str) -> Tuple[StructuredExtraction, 
             )
             response = client.models.generate_content(
                 model=settings.MODEL_NAME,
-                contents=prompt,
+                contents=contents,
                 config=config
             )
 
@@ -318,7 +314,6 @@ def triage_with_gemini(title: str, content: str) -> Tuple[StructuredExtraction, 
             if attempt < max_retries:
                 time.sleep(wait_time)
             else:
-                # Do NOT silently fall back without reporting the network failure
                 logger.error(f"[GEMINI CONNECTION FAILED] Network or API failure: {last_error}")
                 raise HTTPException(
                     status_code=502,
@@ -334,6 +329,7 @@ def triage_with_gemini(title: str, content: str) -> Tuple[StructuredExtraction, 
 def process_and_ingest_article(article_in: ArticleIngestInput) -> ArticleRecord:
     """
     Standard ingestion pipeline for backwards compatibility with tests and batch operations.
+    Computes SHA-256 and checks duplicate collision gate.
     """
     content_hash = compute_content_hash(article_in.title, article_in.content)
 
@@ -344,7 +340,7 @@ def process_and_ingest_article(article_in: ArticleIngestInput) -> ArticleRecord:
         )
         raise HTTPException(
             status_code=409,
-            detail=f"DUPLICATE DETECTED: Document hash {content_hash[:8]} is already indexed under record ID {existing.id}"
+            detail=f"Collision detected / DUPLICATE DETECTED: Dispatch already exists with hash {content_hash[:8]} under ID {existing.id}."
         )
 
     extraction, _ = triage_with_gemini(article_in.title, article_in.content)
@@ -392,7 +388,6 @@ def analyze_and_process_dispatch(payload: AnalyzeInput) -> AnalyzeResponse:
         title, content, resolved_source = fetch_url_payload(raw_input)
         source = payload.source or resolved_source
     else:
-        # Determine title from first sentence / line
         lines = [line.strip() for line in raw_input.split('\n') if line.strip()]
         if len(lines) > 1 and len(lines[0]) < 120:
             title = lines[0]
@@ -403,6 +398,15 @@ def analyze_and_process_dispatch(payload: AnalyzeInput) -> AnalyzeResponse:
             content = raw_input
         source = payload.source or "OSINT Field Dispatch"
 
+    # Enforce minimum lengths
+    if len(title.strip()) < 5:
+        title = f"OSINT Dispatch: {title.strip()}"
+    if len(content.strip()) < 20:
+        raise HTTPException(
+            status_code=422,
+            detail="Content must be at least 20 characters for intelligence triage."
+        )
+
     # Compute deterministic SHA-256 fingerprint
     content_hash = compute_content_hash(title, content)
     
@@ -412,7 +416,7 @@ def analyze_and_process_dispatch(payload: AnalyzeInput) -> AnalyzeResponse:
         logger.warning(f"[COLLISION] Duplicate hash {content_hash[:8]} matches existing ID {existing.id}")
         raise HTTPException(
             status_code=409,
-            detail=f"DUPLICATE DETECTED: Document hash {content_hash[:8]} is already indexed under record ID {existing.id}"
+            detail=f"Collision detected / DUPLICATE DETECTED: Dispatch already exists with hash {content_hash[:8]} under ID {existing.id}."
         )
 
     agent_trace.append(AgentStep(

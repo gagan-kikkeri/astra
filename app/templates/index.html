@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ASTRA Sentinel - Intelligence Agent</title>
+  <title>ASTRA Sentinel - Intelligence Agent &amp; C2 Terminal</title>
 
-  <!-- Google Fonts: Inter for clean typography & JetBrains Mono for code/tags -->
+  <!-- Google Fonts: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -19,11 +19,11 @@
         extend: {
           colors: {
             brand: {
-              base: '#0a0e17',
-              card: '#111827',
-              subcard: '#161f30',
-              border: '#1f293d',
-              borderLight: '#2e3d57',
+              base: '#080c14',
+              card: '#0f172a',
+              subcard: '#141e33',
+              border: '#1e293b',
+              borderLight: '#334155',
               emerald: '#10b981',
               amber: '#f59e0b',
               crimson: '#ef4444',
@@ -42,610 +42,520 @@
 
   <style>
     body {
-      background-color: #0a0e17;
-      color: #e2e8f0;
+      background-color: #080c14;
+      color: #cbd5e1;
       font-family: 'Inter', system-ui, sans-serif;
     }
 
-    /* Pulse animation for agent status */
+    /* Pulse animation */
     @keyframes pulseGlow {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(1.15); }
+      50% { opacity: 0.35; transform: scale(1.15); }
     }
     .status-pulse {
       animation: pulseGlow 2s infinite ease-in-out;
     }
 
-    /* Spinner animation */
+    /* Spin animation */
     @keyframes spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
     .agent-spinner {
-      animation: spin 0.9s linear infinite;
+      animation: spin 0.8s linear infinite;
     }
 
-    /* Subtle custom scrollbars */
+    /* Scrollbars */
     ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
+      width: 5px;
+      height: 5px;
     }
     ::-webkit-scrollbar-track {
-      background: #0a0e17;
+      background: #080c14;
     }
     ::-webkit-scrollbar-thumb {
-      background: #1f293d;
-      border-radius: 3px;
+      background: #1e293b;
+      border-radius: 2px;
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: #3b82f6;
+      background: #10b981;
+    }
+
+    .border-input-error {
+      border-color: #ef4444 !important;
+      box-shadow: 0 0 0 1px #ef4444 !important;
     }
   </style>
 </head>
-<body class="min-h-screen flex flex-col antialiased selection:bg-blue-600 selection:text-white">
+<body class="min-h-screen flex flex-col antialiased selection:bg-emerald-600 selection:text-white">
 
   <!-- ========================================================================= -->
-  <!-- HEADER: CLEAN, MINIMAL TITLE WITH STATUS DOT                              -->
+  <!-- TOP TACTICAL NAVIGATION BAR                                               -->
   <!-- ========================================================================= -->
-  <header class="border-b border-brand-border bg-brand-base/80 backdrop-blur-md sticky top-0 z-40">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+  <header class="border-b border-brand-border bg-brand-base/90 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between">
       
       <!-- Title & Status -->
       <div class="flex items-center space-x-3">
         <div class="relative flex items-center justify-center">
-          <span class="w-2.5 h-2.5 bg-brand-emerald rounded-full status-pulse"></span>
+          <span id="navStatusDot" class="w-2.5 h-2.5 bg-brand-emerald rounded-full status-pulse"></span>
           <span class="absolute w-4 h-4 bg-brand-emerald/20 rounded-full animate-ping"></span>
         </div>
-        <div>
-          <h1 class="text-base sm:text-lg font-bold text-white tracking-tight flex items-center space-x-2">
-            <span>ASTRA Sentinel</span>
-            <span class="text-slate-500 font-normal">/</span>
-            <span class="text-slate-300 font-medium text-sm sm:text-base">Intelligence Agent</span>
-          </h1>
+        <div class="flex items-center space-x-2">
+          <span class="font-extrabold text-sm sm:text-base text-white tracking-wider font-mono">ASTRA SENTINEL</span>
+          <span class="text-slate-600 font-mono text-xs">/</span>
+          <span class="text-slate-400 font-medium text-xs hidden sm:inline">Tactical Defence OSINT</span>
         </div>
       </div>
 
-      <!-- Engine Badge -->
-      <div class="flex items-center space-x-2 text-xs">
-        <span class="hidden sm:inline text-slate-400">ENGINE:</span>
-        <span id="engineBadge" class="px-2 py-0.5 rounded bg-brand-subcard border border-brand-border text-brand-cyan font-mono text-[11px] font-medium">
-          CONNECTING...
-        </span>
+      <!-- Engine Status Badge (Dynamic Phosphor Green / Offline with Retry) -->
+      <div class="flex items-center space-x-2 text-xs font-mono">
+        <div id="engineModeContainer" class="flex items-center space-x-1.5">
+          <span id="engineBadge" class="px-2 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold text-[11px]">
+            ENGINE: GEMINI-2.5-FLASH [ONLINE]
+          </span>
+          <button id="engineRetryBtn" onclick="testEngineConnectivity()" class="hidden px-2 py-0.5 rounded border border-amber-500 bg-amber-950/40 text-amber-300 hover:bg-amber-900/60 text-[10px] font-bold">
+            [RETRY]
+          </button>
+        </div>
       </div>
 
     </div>
   </header>
 
   <!-- ========================================================================= -->
-  <!-- MAIN SINGLE-COLUMN AGENT FLOW CONTAINER                                   -->
+  <!-- MAIN WORKSTATION CONTAINER                                                -->
   <!-- ========================================================================= -->
-  <main class="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 space-y-6">
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
 
-    <!-- CONNECTION ISSUE ALERT BANNER (Revealed on network resolution error) -->
-    <div id="connectionAlert" class="hidden p-4 rounded-lg border border-red-500/40 bg-red-950/30 text-red-200 text-sm flex items-start space-x-3 transition-all">
-      <span class="text-red-400 text-lg leading-none mt-0.5">⚠️</span>
-      <div class="flex-1">
-        <h4 class="font-semibold text-red-300 mb-0.5" id="connectionAlertTitle">Network Resolution Issue</h4>
-        <p class="text-xs text-red-200/90 leading-relaxed font-mono" id="connectionAlertMessage">
-          Unable to establish network connection. Please check network connectivity or enter dispatch text directly.
-        </p>
+    <!-- GLOBAL TOAST NOTIFICATIONS (Client error & SHA-256 collision warnings) -->
+    <div id="clientErrorToast" class="hidden p-3 rounded border border-red-500 bg-red-950/80 text-red-200 text-xs font-mono flex items-center justify-between shadow-xl">
+      <div class="flex items-center space-x-2">
+        <span class="text-red-400 font-bold">⚠️</span>
+        <span id="clientErrorToastMsg">[INPUT ERROR: Content must be at least 20 characters for triage]</span>
       </div>
-      <button onclick="dismissAlert('connectionAlert')" class="text-red-400 hover:text-white text-xs px-1">✕</button>
+      <button onclick="dismissAlert('clientErrorToast')" class="text-red-400 hover:text-white px-2">✕</button>
     </div>
 
-    <!-- DUPLICATE COLLISION ALERT BANNER (Revealed on HTTP 409) -->
-    <div id="duplicateAlert" class="hidden p-4 rounded-lg border border-amber-500/40 bg-amber-950/30 text-amber-200 text-sm flex items-start space-x-3 transition-all">
-      <span class="text-amber-400 text-lg leading-none mt-0.5">⚠️</span>
-      <div class="flex-1">
-        <h4 class="font-semibold text-amber-300 mb-0.5">Duplicate Dispatch Detected</h4>
-        <p class="text-xs text-amber-200/90 leading-relaxed font-mono" id="duplicateAlertMessage">
-          This payload has already been indexed in the database. Duplicate submission aborted.
-        </p>
+    <div id="collisionToast" class="hidden p-3 rounded border border-amber-500 bg-amber-950/80 text-amber-200 text-xs font-mono flex items-center justify-between shadow-xl">
+      <div class="flex items-center space-x-2">
+        <span class="text-amber-400 font-bold">⚠️</span>
+        <span id="collisionToastMsg">[SHA-256 COLLISION: Article already exists in database. Duplicate avoided]</span>
       </div>
-      <button onclick="dismissAlert('duplicateAlert')" class="text-amber-400 hover:text-white text-xs px-1">✕</button>
+      <button onclick="dismissAlert('collisionToast')" class="text-amber-400 hover:text-white px-2">✕</button>
     </div>
 
-    <!-- ----------------------------------------------------------------------- -->
-    <!-- 1. INPUT AREA (TOP)                                                     -->
-    <!-- ----------------------------------------------------------------------- -->
-    <section class="bg-brand-card border border-brand-border rounded-xl p-5 sm:p-6 shadow-xl space-y-4">
-      
-      <div class="flex items-center justify-between">
-        <label for="dispatchInput" class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
-          <span>Inbound Intelligence Dispatch or URL</span>
-        </label>
-        <span class="text-[11px] text-slate-500 font-mono">TEXT OR HTTP(S) URL</span>
-      </div>
-
-      <!-- Main Input Box -->
-      <div class="relative">
-        <textarea 
-          id="dispatchInput" 
-          rows="5" 
-          placeholder="Paste raw defence intelligence, OSINT wire report, or enter an article URL (e.g. https://...)..."
-          class="w-full bg-brand-base border border-brand-border focus:border-blue-500 rounded-lg p-3.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all font-mono leading-relaxed"
-        ></textarea>
-      </div>
-
-      <!-- Quick Preset Sample Dispatches -->
-      <div class="flex flex-wrap items-center gap-2 pt-1 text-xs">
-        <span class="text-slate-500 text-[11px] font-medium mr-1">QUICK SAMPLES:</span>
-        <button type="button" onclick="loadSample('hypersonic')" class="px-2.5 py-1 rounded bg-brand-subcard border border-brand-border hover:border-brand-borderLight text-slate-300 hover:text-white text-xs transition-colors">
-          Hypersonic Countermeasure
-        </button>
-        <button type="button" onclick="loadSample('naval')" class="px-2.5 py-1 rounded bg-brand-subcard border border-brand-border hover:border-brand-borderLight text-slate-300 hover:text-white text-xs transition-colors">
-          Deep-Sea Sonar Array
-        </button>
-        <button type="button" onclick="loadSample('cyber')" class="px-2.5 py-1 rounded bg-brand-subcard border border-brand-border hover:border-brand-borderLight text-slate-300 hover:text-white text-xs transition-colors">
-          SCADA Zero-Day Exploit
-        </button>
-        <button type="button" onclick="clearInput()" class="ml-auto text-slate-500 hover:text-slate-300 text-xs">
-          Clear
-        </button>
-      </div>
-
-      <!-- Single Prominent Action Button -->
-      <div class="pt-2">
-        <button 
-          id="analyzeBtn" 
-          type="button" 
-          onclick="handleAnalyzeClick()"
-          class="w-full py-3.5 px-6 rounded-lg bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-sm tracking-wide transition-all shadow-lg shadow-blue-900/30 flex items-center justify-center space-x-2"
-        >
-          <span id="analyzeBtnSpinner" class="hidden">
-            <svg class="agent-spinner w-4 h-4 text-white" viewBox="0 0 24 24" fill="none">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          </span>
-          <span id="analyzeBtnText">Analyze Dispatch</span>
-          <span id="analyzeBtnIcon">→</span>
-        </button>
-      </div>
-
-    </section>
-
-    <!-- ----------------------------------------------------------------------- -->
-    <!-- 2. AGENT EXECUTION FEED (MIDDLE)                                        -->
-    <!-- ----------------------------------------------------------------------- -->
-    <section id="agentExecutionSection" class="hidden bg-brand-card border border-brand-border rounded-xl p-5 sm:p-6 shadow-xl space-y-3 transition-all">
-      <div class="flex items-center justify-between border-b border-brand-border pb-3">
-        <div class="flex items-center space-x-2">
-          <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-          <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300">
-            Autonomous Agent Execution Trace
-          </h3>
+    <!-- ======================================================================= -->
+    <!-- 1. DUAL CATEGORY & DATE HORIZON FILTERING RIBBON                        -->
+    <!-- ======================================================================= -->
+    <div class="p-3 bg-brand-card border border-brand-border rounded-lg space-y-2.5">
+      <div class="flex flex-wrap items-center justify-between border-b border-slate-800 pb-2 mb-1 gap-2">
+        <!-- Categories -->
+        <div class="flex items-center gap-1 overflow-x-auto text-[11px] font-mono">
+          <button onclick="setCategory('ALL')" data-category="ALL" class="cat-pill px-2 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold">[ALL]</button>
+          <button onclick="setCategory('Aerospace')" data-category="Aerospace" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[AEROSPACE]</button>
+          <button onclick="setCategory('Naval')" data-category="Naval" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[NAVAL]</button>
+          <button onclick="setCategory('Land Systems')" data-category="Land Systems" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[LAND]</button>
+          <button onclick="setCategory('Cybersecurity')" data-category="Cybersecurity" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[CYBER]</button>
+          <button onclick="setCategory('Space')" data-category="Space" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[SPACE]</button>
+          <button onclick="setCategory('AI/Robotics')" data-category="AI/Robotics" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[AI/ROBOTICS]</button>
+          <button onclick="setCategory('Defence Technology')" data-category="Defence Technology" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[DEFENCE TECH]</button>
         </div>
-        <span id="agentStatusBadge" class="text-[11px] font-mono text-blue-400">
-          PROCESSING...
-        </span>
-      </div>
-
-      <div class="space-y-2.5 pt-2" id="agentStepsContainer">
-        <!-- Step 1 -->
-        <div id="step-1" class="flex items-start space-x-3 p-2.5 rounded bg-brand-base border border-brand-border/60 transition-all text-xs">
-          <div id="step-1-icon" class="w-5 h-5 flex items-center justify-center text-slate-500 mt-0.5">○</div>
-          <div class="flex-1">
-            <div class="font-medium text-slate-200">1. Ingesting payload &amp; checking hash integrity...</div>
-            <div id="step-1-detail" class="text-slate-400 text-[11px] font-mono mt-0.5">Queued</div>
-          </div>
-        </div>
-
-        <!-- Step 2 -->
-        <div id="step-2" class="flex items-start space-x-3 p-2.5 rounded bg-brand-base border border-brand-border/60 transition-all text-xs">
-          <div id="step-2-icon" class="w-5 h-5 flex items-center justify-center text-slate-500 mt-0.5">○</div>
-          <div class="flex-1">
-            <div class="font-medium text-slate-200">2. Classifying tactical domain...</div>
-            <div id="step-2-detail" class="text-slate-400 text-[11px] font-mono mt-0.5">Queued</div>
-          </div>
-        </div>
-
-        <!-- Step 3 -->
-        <div id="step-3" class="flex items-start space-x-3 p-2.5 rounded bg-brand-base border border-brand-border/60 transition-all text-xs">
-          <div id="step-3-icon" class="w-5 h-5 flex items-center justify-center text-slate-500 mt-0.5">○</div>
-          <div class="flex-1">
-            <div class="font-medium text-slate-200">3. Extracting entities, systems, and key actors...</div>
-            <div id="step-3-detail" class="text-slate-400 text-[11px] font-mono mt-0.5">Queued</div>
-          </div>
-        </div>
-
-        <!-- Step 4 -->
-        <div id="step-4" class="flex items-start space-x-3 p-2.5 rounded bg-brand-base border border-brand-border/60 transition-all text-xs">
-          <div id="step-4-icon" class="w-5 h-5 flex items-center justify-center text-slate-500 mt-0.5">○</div>
-          <div class="flex-1">
-            <div class="font-medium text-slate-200">4. Synthesizing situation briefing...</div>
-            <div id="step-4-detail" class="text-slate-400 text-[11px] font-mono mt-0.5">Queued</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ----------------------------------------------------------------------- -->
-    <!-- 3. OUTPUT CARD (BOTTOM)                                                 -->
-    <!-- ----------------------------------------------------------------------- -->
-    <section id="outputCardSection" class="hidden bg-brand-card border border-brand-border rounded-xl p-5 sm:p-6 shadow-2xl space-y-5 transition-all">
-      
-      <!-- Card Header: Category & Threat Pill -->
-      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-brand-border pb-4">
-        <div class="flex items-center space-x-2">
-          <span id="outputCategoryBadge" class="px-3 py-1 rounded-md text-xs font-semibold uppercase tracking-wider bg-blue-950/70 border border-blue-500 text-blue-300 font-mono">
-            AEROSPACE
-          </span>
-          <span id="outputThreatPill" class="px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider bg-red-950/60 border border-red-500 text-red-300 font-mono">
-            CRITICAL
-          </span>
-        </div>
-        <div class="text-xs text-slate-400 font-mono flex items-center space-x-2">
-          <span id="outputIdBadge">ID: AST-8F2A</span>
-          <span>·</span>
-          <span id="outputDateBadge">2026-09-28</span>
+        <!-- Date Horizon -->
+        <div class="flex items-center gap-1 text-[11px] font-mono text-slate-400">
+          <span class="text-slate-600 uppercase text-[10px]">Horizon:</span>
+          <button onclick="setDateFilter('ALL')" id="date-ALL" class="date-pill px-1.5 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold">[ALL TIME]</button>
+          <button onclick="setDateFilter('24H')" id="date-24H" class="date-pill px-1.5 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[24H]</button>
+          <button onclick="setDateFilter('7D')" id="date-7D" class="date-pill px-1.5 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[7D]</button>
+          <button onclick="setDateFilter('30D')" id="date-30D" class="date-pill px-1.5 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[30D]</button>
         </div>
       </div>
 
-      <!-- Title / Headline -->
-      <div>
-        <h2 id="outputTitle" class="text-base sm:text-lg font-bold text-white leading-snug">
-          Hypersonic Interceptor Completes Static Seeker Test
-        </h2>
-      </div>
-
-      <!-- Key Entities & Platforms -->
-      <div class="space-y-1.5">
-        <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-          Key Entities &amp; Identified Platforms:
+      <!-- Quick Search Command Filter -->
+      <div class="flex items-center justify-between text-xs font-mono pt-0.5">
+        <div class="flex items-center space-x-2 flex-1 max-w-md">
+          <span class="text-emerald-400 font-bold text-xs">&gt;</span>
+          <input 
+            id="wireSearchInput" 
+            type="text" 
+            placeholder="Search FTS5 acronyms (e.g. UAV, AESA, DRDO, Mach, GPI)..." 
+            oninput="handleWireSearch(event)"
+            class="w-full bg-brand-base border border-brand-border focus:border-emerald-500 rounded px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none"
+          />
         </div>
-        <div id="outputEntitiesContainer" class="flex flex-wrap gap-1.5 font-mono text-xs">
-          <!-- Injected tags -->
-        </div>
-      </div>
-
-      <!-- Executive Summary (2-3 sentences) -->
-      <div class="p-4 rounded-lg bg-brand-base border border-brand-border space-y-1.5">
-        <div class="text-[11px] font-semibold uppercase tracking-wider text-brand-emerald">
-          Executive Summary
-        </div>
-        <p id="outputSummary" class="text-sm text-slate-200 leading-relaxed font-sans">
-          The test validated gallium-nitride AESA radar acquisition under intense thermal plasma conditions. Allied analysts emphasize that the breakthrough addresses critical blind spots in stratospheric defense.
-        </p>
-      </div>
-
-      <!-- Card Footer Actions -->
-      <div class="flex items-center justify-between pt-2 border-t border-brand-border text-xs text-slate-400">
-        <div class="font-mono text-[11px] truncate max-w-[280px]" id="outputHashBadge">
-          HASH: 9cc5f4a2...
-        </div>
-        <div class="flex items-center space-x-2">
-          <button onclick="copyExecutiveSummary()" class="px-3 py-1.5 rounded bg-brand-subcard border border-brand-border hover:border-slate-500 text-slate-200 hover:text-white text-xs font-medium transition-colors">
-            Copy Summary
-          </button>
-          <button onclick="toggleRawContent()" class="px-3 py-1.5 rounded bg-brand-subcard border border-brand-border hover:border-slate-500 text-slate-200 hover:text-white text-xs font-medium transition-colors">
-            View Wire Text
-          </button>
+        <div id="filterCountReadout" class="text-slate-500 text-[11px]">
+          Filtering dispatches...
         </div>
       </div>
+    </div>
 
-      <!-- Collapsible Full Content Body -->
-      <div id="rawContentDrawer" class="hidden p-3 rounded bg-brand-base border border-brand-border text-xs font-mono text-slate-300 leading-relaxed max-h-60 overflow-y-auto whitespace-pre-wrap">
-      </div>
+    <!-- ======================================================================= -->
+    <!-- 2. TWO-COLUMN OPERATIONAL WORKSPACE (Input & Wire | Gemini Console)      -->
+    <!-- ======================================================================= -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-    </section>
-
-    <!-- ----------------------------------------------------------------------- -->
-    <!-- 4. RECENT DISPATCHES LIST (MINIMAL LIST)                                 -->
-    <!-- ----------------------------------------------------------------------- -->
-    <section class="bg-brand-card border border-brand-border rounded-xl p-5 sm:p-6 shadow-xl space-y-4">
-      
-      <div class="flex items-center justify-between">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
-          <span>Recent Indexed Dispatches</span>
-          <span id="recentCountBadge" class="px-1.5 py-0.2 rounded bg-brand-subcard border border-brand-border text-[10px] text-slate-400 font-mono">0</span>
-        </h3>
+      <!-- LEFT COLUMN: INGESTION NODE & DISPATCH LEDGER (7 cols) -->
+      <div class="lg:col-span-7 space-y-6">
         
-        <!-- Filter Input -->
-        <input 
-          id="recentSearchInput"
-          type="text" 
-          placeholder="Filter recent dispatches..." 
-          oninput="handleRecentSearch(event)"
-          class="w-48 sm:w-64 bg-brand-base border border-brand-border focus:border-blue-500 rounded px-2.5 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none font-mono"
-        />
+        <!-- INGESTION PANEL -->
+        <section class="bg-brand-card border border-brand-border rounded-xl p-5 shadow-xl space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono flex items-center space-x-2">
+              <span class="w-2 h-2 bg-emerald-400 rounded-full"></span>
+              <span>INBOUND OSINT DISPATCH INGESTION</span>
+            </h2>
+            <span class="text-[10px] text-slate-500 font-mono">SHA-256 VERIFIED</span>
+          </div>
+
+          <!-- Input fields -->
+          <div class="space-y-2.5 font-mono text-xs">
+            <div>
+              <input 
+                id="inputTitle" 
+                type="text" 
+                placeholder="Dispatch Title (min 5 characters)..." 
+                class="w-full bg-brand-base border border-brand-border focus:border-emerald-500 rounded px-3 py-2 text-white placeholder-slate-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <textarea 
+                id="inputContent" 
+                rows="4" 
+                placeholder="Dispatch Intelligence Content (min 20 characters for triage)..." 
+                class="w-full bg-brand-base border border-brand-border focus:border-emerald-500 rounded p-3 text-white placeholder-slate-500 focus:outline-none leading-relaxed font-mono"
+              ></textarea>
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-slate-400">
+              <div class="flex items-center space-x-2">
+                <span>SOURCE:</span>
+                <input id="inputSource" type="text" value="OSINT Wire" class="bg-brand-base border border-brand-border rounded px-2 py-0.5 text-slate-200 w-28 text-[11px]" />
+              </div>
+              <!-- Quick presets -->
+              <div class="flex items-center space-x-1.5">
+                <button type="button" onclick="loadSample('hypersonic')" class="text-slate-400 hover:text-emerald-400 text-[10px]">[HYPERSONIC]</button>
+                <button type="button" onclick="loadSample('naval')" class="text-slate-400 hover:text-cyan-400 text-[10px]">[SONAR]</button>
+                <button type="button" onclick="loadSample('cyber')" class="text-slate-400 hover:text-red-400 text-[10px]">[CYBER]</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Button -->
+          <button 
+            id="ingestBtn" 
+            onclick="handleIngestSubmit()" 
+            class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-black font-extrabold uppercase tracking-wider text-xs font-mono transition-all rounded flex items-center justify-center space-x-2"
+          >
+            <span id="ingestSpinner" class="hidden">⚡ TRANSMITTING &amp; TRIAGING...</span>
+            <span id="ingestLabel">INDEX DISPATCH &amp; EXTRACT METADATA</span>
+          </button>
+        </section>
+
+        <!-- DISPATCH LEDGER (Scrollable list with discrete platform & keyword chips) -->
+        <section class="bg-brand-card border border-brand-border rounded-xl p-5 shadow-xl space-y-3">
+          <div class="flex items-center justify-between border-b border-brand-border pb-2.5">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono flex items-center space-x-2">
+              <span class="w-1.5 h-1.5 bg-blue-400"></span>
+              <span>INDEXED INTELLIGENCE WIRE</span>
+            </h3>
+            <span id="ledgerCountBadge" class="text-[11px] font-mono text-slate-400">0 Records</span>
+          </div>
+
+          <div id="dispatchesLedgerContainer" class="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+            <div class="py-8 text-center text-xs text-slate-500 font-mono">
+              Loading verified intelligence ledger...
+            </div>
+          </div>
+        </section>
+
       </div>
 
-      <!-- Dispatches List -->
-      <div id="recentDispatchesList" class="divide-y divide-brand-border">
-        <div class="py-6 text-center text-xs text-slate-500 font-mono">
-          Loading indexed intelligence...
-        </div>
+      <!-- RIGHT COLUMN: CROSS-DOCUMENT INTELLIGENCE CONSOLE (5 cols) -->
+      <div class="lg:col-span-5 space-y-6">
+        
+        <!-- CROSS-DOCUMENT RELATIONAL SYNTHESIS CONSOLE -->
+        <section class="bg-brand-card border border-brand-border rounded-xl p-5 shadow-2xl space-y-4">
+          <div class="flex items-center justify-between border-b border-brand-border pb-2.5">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-amber-300 font-mono flex items-center space-x-2">
+              <span class="w-2 h-2 bg-amber-400 rounded-full"></span>
+              <span>CROSS-DOCUMENT INTEL CONSOLE</span>
+            </h2>
+            <span class="text-[10px] text-amber-400/80 font-mono">GEMINI RAG SYNTHESIS</span>
+          </div>
+
+          <p class="text-xs text-slate-400 leading-relaxed font-sans">
+            Query across all stored dispatches. The agent queries SQLite FTS5, injects ground truth context into Gemini 2.5 Flash, and reconstructs cross-cutting platforms, timelines, and assessments.
+          </p>
+
+          <!-- Inquiry Input -->
+          <div class="space-y-2">
+            <textarea 
+              id="crossInquiryInput" 
+              rows="3" 
+              placeholder="e.g. What are our adversaries doing in hypersonic glide and GaN radar countermeasures?" 
+              class="w-full bg-brand-base border border-brand-border focus:border-amber-500 rounded p-3 text-xs text-white placeholder-slate-500 focus:outline-none font-mono leading-relaxed"
+            >Summarize our latest surveillance, counter-radar, and hypersonic capabilities.</textarea>
+
+            <button 
+              id="synthesizeBtn" 
+              onclick="handleCrossDocumentSynthesis()" 
+              class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black font-extrabold uppercase tracking-wider text-xs font-mono transition-all rounded flex items-center justify-center space-x-2 shadow-lg shadow-amber-950/40"
+            >
+              <span id="synthSpinner" class="hidden">
+                <svg class="agent-spinner w-3.5 h-3.5 text-black" viewBox="0 0 24 24" fill="none">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </span>
+              <span id="synthLabel">[QUERY GEMINI INTELLIGENCE]</span>
+            </button>
+          </div>
+
+          <!-- OPERATIONAL EXECUTION TRACE (Animated steps) -->
+          <div id="synthTraceContainer" class="hidden space-y-2 p-3 rounded bg-brand-base border border-brand-border font-mono text-[11px]">
+            <div class="text-slate-400 uppercase text-[10px] font-bold pb-1 border-b border-slate-800 flex items-center justify-between">
+              <span>Operational Synthesis Trace</span>
+              <span id="traceStatusBadge" class="text-amber-400">ACTIVE</span>
+            </div>
+            
+            <div id="trace-step-1" class="flex items-center space-x-2 text-slate-400">
+              <span id="trace-1-icon">○</span>
+              <span>1. Querying SQLite FTS5 vector and keyword indexes...</span>
+            </div>
+            <div id="trace-step-2" class="flex items-center space-x-2 text-slate-400">
+              <span id="trace-2-icon">○</span>
+              <span>2. Aggregating matching dispatches into context window...</span>
+            </div>
+            <div id="trace-step-3" class="flex items-center space-x-2 text-slate-400">
+              <span id="trace-3-icon">○</span>
+              <span>3. Gemini 2.5 Flash synthesizing cross-cutting intelligence dossier...</span>
+            </div>
+          </div>
+
+          <!-- SYNTHESIZED DOSSIER CARD OUTPUT -->
+          <div id="synthDossierOutput" class="hidden space-y-3 pt-2">
+            
+            <!-- Classification Header -->
+            <div class="p-2 text-center font-bold tracking-widest text-xs border border-amber-500/80 bg-amber-950/40 text-amber-300 uppercase font-mono">
+              ASTRA // CROSS-DOCUMENT INTELLIGENCE DOSSIER
+            </div>
+
+            <!-- Executive Assessment -->
+            <div class="p-3 bg-brand-base border border-brand-border rounded space-y-1">
+              <div class="text-[10px] text-emerald-400 font-bold uppercase font-mono">I. EXECUTIVE ASSESSMENT</div>
+              <p id="dossierAssessment" class="text-xs text-slate-200 leading-relaxed font-sans"></p>
+            </div>
+
+            <!-- Identified Platforms & Weapon Systems -->
+            <div class="p-3 bg-brand-base border border-brand-border rounded space-y-1.5">
+              <div class="text-[10px] text-cyan-400 font-bold uppercase font-mono">II. IDENTIFIED PLATFORMS &amp; SYSTEMS</div>
+              <div id="dossierPlatforms" class="flex flex-wrap gap-1 font-mono text-xs"></div>
+            </div>
+
+            <!-- Chronological Developments -->
+            <div class="p-3 bg-brand-base border border-brand-border rounded space-y-1.5">
+              <div class="text-[10px] text-amber-400 font-bold uppercase font-mono">III. CHRONOLOGICAL DEVELOPMENTS</div>
+              <div id="dossierChronology" class="space-y-1.5 font-mono text-[11px] text-slate-300"></div>
+            </div>
+
+            <!-- Referenced Sources (Clickable badges linking directly to dispatches) -->
+            <div class="p-3 bg-brand-base border border-brand-border rounded space-y-1.5">
+              <div class="text-[10px] text-emerald-400 font-bold uppercase font-mono">IV. REFERENCED GROUND TRUTH SOURCES</div>
+              <div id="dossierSources" class="flex flex-wrap gap-1.5 font-mono text-xs"></div>
+            </div>
+
+          </div>
+
+        </section>
+
       </div>
 
-    </section>
+    </div>
 
   </main>
 
   <!-- ========================================================================= -->
-  <!-- JAVASCRIPT: AGENT EXECUTION CONTROLLER                                    -->
+  <!-- MODAL: FULL DISPATCH INSPECTOR                                            -->
+  <!-- ========================================================================= -->
+  <div id="articleModal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+    <div class="bg-brand-card border border-brand-borderLight w-full max-w-2xl max-h-[85vh] flex flex-col rounded-lg shadow-2xl">
+      <div class="p-3.5 border-b border-brand-border flex items-center justify-between">
+        <div class="flex items-center space-x-2 font-mono text-xs">
+          <span class="font-bold text-white" id="modalId">--</span>
+          <span class="text-slate-500">|</span>
+          <span class="text-emerald-400" id="modalCategory">--</span>
+          <span class="text-slate-500">|</span>
+          <span class="text-amber-400" id="modalThreat">--</span>
+        </div>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-red-400 font-bold text-sm px-2">✕ CLOSE</button>
+      </div>
+
+      <div class="p-4 overflow-y-auto space-y-3 font-mono text-xs">
+        <div class="text-white font-bold text-sm leading-snug" id="modalTitle">--</div>
+        
+        <div class="p-2.5 bg-brand-base border border-brand-border rounded text-slate-300">
+          <div class="text-[10px] text-emerald-400 font-bold uppercase mb-1">Executive Summary:</div>
+          <p id="modalSummary">--</p>
+        </div>
+
+        <div>
+          <div class="text-[10px] text-slate-500 uppercase font-bold mb-1">Raw Intelligence Wire:</div>
+          <div id="modalContent" class="p-2.5 bg-brand-base border border-brand-border rounded text-slate-300 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">--</div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-[10px]">
+          <div class="p-2 bg-brand-base border border-brand-border rounded">
+            <span class="text-slate-500 uppercase block font-bold mb-1">Platforms &amp; Entities:</span>
+            <div id="modalEntities" class="flex flex-wrap gap-1"></div>
+          </div>
+          <div class="p-2 bg-brand-base border border-brand-border rounded">
+            <span class="text-slate-500 uppercase block font-bold mb-1">Keywords:</span>
+            <div id="modalKeywords" class="flex flex-wrap gap-1"></div>
+          </div>
+        </div>
+
+        <div class="text-[10px] text-slate-500 pt-1">
+          SHA-256: <span id="modalHash" class="text-slate-400">--</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT: CONTROLLER                                                    -->
   <!-- ========================================================================= -->
   <script>
-    // State Store
-    let allRecentArticles = [];
-    let currentActiveRecord = null;
+    // State
+    let currentCategory = 'ALL';
+    let currentDateFilter = 'ALL';
+    let articlesCache = [];
     let searchDebounce = null;
 
-    // Tactical Quick Samples
     const SAMPLE_DISPATCHES = {
       hypersonic: {
-        text: "Stratospheric Hypersonic Glide Countermeasure Interceptor Completes Terminal Tracking Radar Validation.\n\nThe Missile Defence Agency (MDA) and prime aerospace contractors have successfully conducted a critical altitude static burn and terminal seeker test of the Hypersonic Glide Phase Interceptor (GPI). Designed to intercept maneuvering glide vehicles traveling at velocities exceeding Mach 6 in the stratospheric envelope at altitudes of 40 to 70 kilometers, the test validated gallium-nitride (GaN) active electronically scanned array (AESA) radar acquisition under intense thermal plasma conditions. Military analysts emphasized that the breakthrough addresses severe interception blind spots between exoatmospheric ballistic shields and conventional medium-range surface-to-air missile umbrellas."
+        title: "Stratospheric Hypersonic Glide Phase Interceptor Validates GaN AESA Terminal Seeker",
+        content: "The Missile Defence Agency (MDA) and prime aerospace contractors successfully validated terminal seeker radar lock of the Hypersonic Glide Phase Interceptor (GPI). Intercepting maneuvering targets in the stratospheric envelope exceeding Mach 6, the gallium-nitride (GaN) active electronically scanned array (AESA) radar maintained track despite extreme plasma sheath distortion.",
+        source: "Aviation Week OSINT"
       },
       naval: {
-        text: "Distributed Quantum Magnetometer Sonar Arrays Deployed for Deep-Sea Submarine Acoustic Signature Profiling.\n\nNaval operational commands have begun sea trials of a seafloor-moored distributed quantum acoustic array across vital chokepoints in the Malacca and Sunda Straits. Leveraging optically pumped atomic magnetometers coupled with ultra-sensitive low-frequency acoustic hydrophones, the system can detect wake turbulence anomalies and magnetic signature fluctuations generated by nuclear-powered attack submarines operating at ultra-quiet cavitation speeds. The integrated sensor grid transmits real-time acoustic telemetry via submerged optical laser nodes to maritime patrol aircraft like the P-8I Neptune."
+        title: "Distributed Quantum Magnetometer Sonar Array Deployed for Deep-Sea Submarine Acoustic Profiling",
+        content: "Naval operational commands completed trials of a seafloor-moored distributed quantum acoustic array across vital chokepoints in the Malacca Strait. Leveraging optically pumped atomic magnetometers with ultra-sensitive low-frequency acoustic hydrophones, the system detects wake turbulence anomalies from submerged nuclear submarines at ultra-quiet cavitation speeds.",
+        source: "Naval Posture Wire"
       },
       cyber: {
-        text: "State-Sponsored Threat Group Exploits Weaponized Firmware Zero-Day in SCADA Grid.\n\nCyber defence agencies have quarantined a sophisticated cyber espionage campaign conducted by state-sponsored threat group APT-41 targeting operational command and control (C2) tactical telemetry grids. The intrusion exploited a previously undisclosed zero-day vulnerability in embedded field-programmable gate array (FPGA) communications hardware, allowing threat actors to bridge air-gapped supervisory control and data acquisition (SCADA) systems through supply chain microcode implants. Immediate firmware sanitization and cryptographic key rotation protocols were activated."
+        title: "State-Sponsored APT Group Quarantined Following Zero-Day Injection in SCADA Military Radar Grid",
+        content: "Cyber defence agencies isolated a critical cyber espionage intrusion targeting command and control telemetry grids. The threat group leveraged a weaponized zero-day exploit in field-programmable gate array communications hardware to bridge air-gapped supervisory control and data acquisition (SCADA) systems before automated key rotation revoked access.",
+        source: "Cyber Defence Dispatch"
       }
     };
 
-    // 1. Initial Load
+    // Initialization
     document.addEventListener('DOMContentLoaded', () => {
-      checkSystemHealth();
-      fetchRecentDispatches();
+      testEngineConnectivity();
+      fetchDispatches();
     });
 
-    // 2. Health & Engine Status Check
-    async function checkSystemHealth() {
+    // 1. Dynamic Engine Connectivity Check
+    async function testEngineConnectivity() {
+      const badge = document.getElementById('engineBadge');
+      const retryBtn = document.getElementById('engineRetryBtn');
+      const dot = document.getElementById('navStatusDot');
+
       try {
         const res = await fetch('/api/health');
         if (res.ok) {
           const data = await res.json();
-          const badge = document.getElementById('engineBadge');
-          if (data.triage_mode && data.triage_mode.includes('gemini')) {
-            badge.textContent = 'GEMINI 2.5 FLASH';
-            badge.className = 'px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-500 text-emerald-400 font-mono text-[11px] font-medium';
+          if (data.gemini_online) {
+            badge.textContent = 'ENGINE: GEMINI-2.5-FLASH [ONLINE]';
+            badge.className = 'px-2 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold text-[11px]';
+            retryBtn.classList.add('hidden');
+            dot.className = 'w-2.5 h-2.5 bg-brand-emerald rounded-full status-pulse';
           } else {
-            badge.textContent = 'RULE-BASED (OFFLINE)';
-            badge.className = 'px-2 py-0.5 rounded bg-blue-950/70 border border-blue-500 text-blue-400 font-mono text-[11px] font-medium';
+            // Unset or offline
+            badge.textContent = 'ENGINE: GEMINI OFFLINE [ERR: NETWORK]';
+            badge.className = 'px-2 py-0.5 rounded border border-amber-500 bg-amber-950/40 text-amber-300 font-bold text-[11px]';
+            retryBtn.classList.remove('hidden');
+            dot.className = 'w-2.5 h-2.5 bg-brand-amber rounded-full status-pulse';
           }
         }
-      } catch (err) {
-        console.warn('Health check failed:', err);
+      } catch (e) {
+        badge.textContent = 'ENGINE: GEMINI OFFLINE [ERR: NETWORK]';
+        badge.className = 'px-2 py-0.5 rounded border border-red-500 bg-red-950/40 text-red-300 font-bold text-[11px]';
+        retryBtn.classList.remove('hidden');
+        dot.className = 'w-2.5 h-2.5 bg-brand-crimson rounded-full status-pulse';
       }
     }
 
-    // 3. Quick Sample Loader
-    function loadSample(key) {
-      const sample = SAMPLE_DISPATCHES[key];
-      if (sample) {
-        document.getElementById('dispatchInput').value = sample.text;
-        dismissAlert('connectionAlert');
-        dismissAlert('duplicateAlert');
-      }
+    // 2. Dual Filtering
+    function setCategory(cat) {
+      currentCategory = cat;
+      document.querySelectorAll('.cat-pill').forEach(btn => {
+        if (btn.dataset.category === cat) {
+          btn.className = 'cat-pill px-2 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold';
+        } else {
+          btn.className = 'cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400';
+        }
+      });
+      fetchDispatches();
     }
 
-    function clearInput() {
-      document.getElementById('dispatchInput').value = '';
-      dismissAlert('connectionAlert');
-      dismissAlert('duplicateAlert');
+    function setDateFilter(horizon) {
+      currentDateFilter = horizon;
+      document.querySelectorAll('.date-pill').forEach(btn => {
+        if (btn.id === `date-${horizon}`) {
+          btn.className = 'date-pill px-1.5 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold';
+        } else {
+          btn.className = 'date-pill px-1.5 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400';
+        }
+      });
+      fetchDispatches();
     }
 
-    function dismissAlert(id) {
-      document.getElementById(id).classList.add('hidden');
-    }
-
-    // 4. Analyze Dispatch Submission
-    async function handleAnalyzeClick() {
-      const inputVal = document.getElementById('dispatchInput').value.trim();
-      if (!inputVal) {
-        alert('Please enter dispatch text or an article URL.');
-        return;
-      }
-
-      dismissAlert('connectionAlert');
-      dismissAlert('duplicateAlert');
-
-      // UI Loading State
-      setButtonLoading(true);
-      resetAgentTrace();
-      document.getElementById('agentExecutionSection').classList.remove('hidden');
-      document.getElementById('outputCardSection').classList.add('hidden');
-
-      // Start sequential visual trace
-      animateTraceStep(1, 'active', 'Analyzing input format & computing SHA-256 fingerprint...');
+    // 3. Fetch Dispatches with Dual Filters
+    async function fetchDispatches(searchQuery = '') {
+      const readout = document.getElementById('filterCountReadout');
+      const ledger = document.getElementById('dispatchesLedgerContainer');
 
       try {
-        const response = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text_or_url: inputVal })
-        });
+        let url = `/api/articles?limit=50`;
+        if (currentCategory !== 'ALL') url += `&category=${encodeURIComponent(currentCategory)}`;
+        if (currentDateFilter !== 'ALL') url += `&date_filter=${encodeURIComponent(currentDateFilter)}`;
 
-        if (response.status === 409) {
-          // Duplicate Gate Collision
-          const errData = await response.json();
-          animateTraceStep(1, 'error', 'Collision detected: Document already exists');
-          document.getElementById('agentStatusBadge').textContent = 'COLLISION REJECTED';
-          document.getElementById('agentStatusBadge').className = 'text-[11px] font-mono text-amber-400 font-semibold';
-          document.getElementById('duplicateAlertMessage').textContent = errData.detail || 'This payload is already indexed.';
-          document.getElementById('duplicateAlert').classList.remove('hidden');
-          return;
+        if (searchQuery.trim()) {
+          url = `/api/search?q=${encodeURIComponent(searchQuery.trim())}&limit=50`;
+          if (currentCategory !== 'ALL') url += `&category=${encodeURIComponent(currentCategory)}`;
+          if (currentDateFilter !== 'ALL') url += `&date_filter=${encodeURIComponent(currentDateFilter)}`;
         }
 
-        if (response.status === 502 || response.status === 504) {
-          // Network resolution error or connection failure
-          const errData = await response.json();
-          animateTraceStep(1, 'error', 'Network resolution failure');
-          document.getElementById('agentStatusBadge').textContent = 'CONNECTION ERROR';
-          document.getElementById('agentStatusBadge').className = 'text-[11px] font-mono text-red-400 font-semibold';
-          document.getElementById('connectionAlertMessage').textContent = errData.detail || 'Unable to establish network connection.';
-          document.getElementById('connectionAlert').classList.remove('hidden');
-          return;
-        }
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to retrieve dispatches');
+        const data = await res.json();
+        
+        articlesCache = Array.isArray(data) ? data : (data.articles || []);
+        readout.textContent = `${articlesCache.length} dispatches matched`;
+        document.getElementById('ledgerCountBadge').textContent = `${articlesCache.length} Records`;
 
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.detail || `Server returned error ${response.status}`);
-        }
-
-        const data = await response.json();
-        currentActiveRecord = data;
-
-        // Step through trace
-        await advanceTraceSequentially(data);
-
-        // Render Output Card
-        renderOutputCard(data);
-
-        // Refresh Recent Dispatches List
-        fetchRecentDispatches();
-
-      } catch (err) {
-        console.error('Analysis failed:', err);
-        document.getElementById('agentStatusBadge').textContent = 'EXECUTION ERROR';
-        document.getElementById('agentStatusBadge').className = 'text-[11px] font-mono text-red-400 font-semibold';
-        document.getElementById('connectionAlertMessage').textContent = err.message || 'An unexpected error occurred.';
-        document.getElementById('connectionAlert').classList.remove('hidden');
-      } finally {
-        setButtonLoading(false);
+        renderLedger(articlesCache);
+      } catch (e) {
+        console.error('Fetch error:', e);
+        ledger.innerHTML = `<div class="p-4 text-center text-xs text-red-400 font-mono">Error connecting to intelligence ledger.</div>`;
       }
     }
 
-    // 5. Trace Animation Sequencer
-    function resetAgentTrace() {
-      document.getElementById('agentStatusBadge').textContent = 'PROCESSING...';
-      document.getElementById('agentStatusBadge').className = 'text-[11px] font-mono text-blue-400 font-semibold';
-      for (let i = 1; i <= 4; i++) {
-        document.getElementById(`step-${i}-icon`).innerHTML = '○';
-        document.getElementById(`step-${i}-icon`).className = 'w-5 h-5 flex items-center justify-center text-slate-500 mt-0.5';
-        document.getElementById(`step-${i}-detail`).textContent = 'Queued';
-        document.getElementById(`step-${i}-detail`).className = 'text-slate-400 text-[11px] font-mono mt-0.5';
-      }
+    function handleWireSearch(e) {
+      const q = e.target.value;
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => {
+        fetchDispatches(q);
+      }, 180);
     }
 
-    function animateTraceStep(stepNum, state, detailText) {
-      const icon = document.getElementById(`step-${stepNum}-icon`);
-      const detail = document.getElementById(`step-${stepNum}-detail`);
-
-      if (state === 'active') {
-        icon.innerHTML = '⚡';
-        icon.className = 'w-5 h-5 flex items-center justify-center text-blue-400 animate-pulse mt-0.5 font-bold';
-        detail.textContent = detailText;
-        detail.className = 'text-blue-300 text-[11px] font-mono mt-0.5';
-      } else if (state === 'completed') {
-        icon.innerHTML = '✓';
-        icon.className = 'w-5 h-5 flex items-center justify-center text-brand-emerald font-bold mt-0.5';
-        detail.textContent = detailText;
-        detail.className = 'text-slate-300 text-[11px] font-mono mt-0.5';
-      } else if (state === 'error') {
-        icon.innerHTML = '✕';
-        icon.className = 'w-5 h-5 flex items-center justify-center text-red-400 font-bold mt-0.5';
-        detail.textContent = detailText;
-        detail.className = 'text-red-400 text-[11px] font-mono mt-0.5';
-      }
-    }
-
-    async function advanceTraceSequentially(data) {
-      const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-      // Step 1: Ingesting & Hash check
-      animateTraceStep(1, 'completed', `Verified SHA-256 [${data.content_hash.substring(0, 8)}...]. Zero collisions.`);
-      await sleep(180);
-
-      // Step 2: Classifying tactical domain
-      animateTraceStep(2, 'active', 'Analyzing defence taxonomy & assessing threat impact...');
-      await sleep(220);
-      animateTraceStep(2, 'completed', `Classified as ${data.category} (Threat Impact: ${data.threat_impact})`);
-
-      // Step 3: Extracting entities
-      animateTraceStep(3, 'active', 'Isolating military platforms, actors & normalized tags...');
-      await sleep(200);
-      const entSnippet = (data.entities || []).slice(0, 3).join(', ');
-      animateTraceStep(3, 'completed', `Extracted ${data.entities.length} platforms (${entSnippet}) & ${data.keywords.length} tags`);
-
-      // Step 4: Synthesizing situation briefing
-      animateTraceStep(4, 'active', 'Synthesizing concise situation assessment...');
-      await sleep(180);
-      animateTraceStep(4, 'completed', 'Executive briefing synthesized into factual assessment');
-
-      document.getElementById('agentStatusBadge').textContent = 'COMPLETED';
-      document.getElementById('agentStatusBadge').className = 'text-[11px] font-mono text-brand-emerald font-bold';
-    }
-
-    // 6. Render Output Card
-    function renderOutputCard(data) {
-      const section = document.getElementById('outputCardSection');
-      section.classList.remove('hidden');
-
-      // Category Badge
-      const catBadge = document.getElementById('outputCategoryBadge');
-      catBadge.textContent = data.category.toUpperCase();
-
-      // Threat Pill
-      const threatPill = document.getElementById('outputThreatPill');
-      threatPill.textContent = data.threat_impact;
-      if (data.threat_impact === 'CRITICAL') {
-        threatPill.className = 'px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider bg-red-950/60 border border-red-500 text-red-300 font-mono';
-      } else if (data.threat_impact === 'HIGH') {
-        threatPill.className = 'px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider bg-amber-950/60 border border-amber-500 text-amber-300 font-mono';
-      } else if (data.threat_impact === 'MEDIUM') {
-        threatPill.className = 'px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider bg-yellow-950/50 border border-yellow-600 text-yellow-300 font-mono';
-      } else {
-        threatPill.className = 'px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider bg-emerald-950/50 border border-emerald-500 text-emerald-300 font-mono';
-      }
-
-      // Meta
-      document.getElementById('outputIdBadge').textContent = `ID: ${data.id}`;
-      document.getElementById('outputDateBadge').textContent = data.date || (data.created_at ? data.created_at.substring(0, 10) : 'TODAY');
-      document.getElementById('outputTitle').textContent = data.title;
-      document.getElementById('outputSummary').textContent = data.executive_summary;
-      document.getElementById('outputHashBadge').textContent = `HASH: ${data.content_hash}`;
-
-      // Entities & Platforms
-      const entitiesContainer = document.getElementById('outputEntitiesContainer');
-      entitiesContainer.innerHTML = (data.entities || []).map(ent => `
-        <span class="px-2 py-0.5 rounded bg-brand-subcard border border-brand-border text-cyan-400 text-xs">
-          ${escapeHtml(ent)}
-        </span>
-      `).join('');
-
-      // Raw content drawer
-      document.getElementById('rawContentDrawer').textContent = data.content;
-      document.getElementById('rawContentDrawer').classList.add('hidden');
-
-      // Scroll smoothly to output card
-      section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    function toggleRawContent() {
-      const drawer = document.getElementById('rawContentDrawer');
-      drawer.classList.toggle('hidden');
-    }
-
-    function copyExecutiveSummary() {
-      if (!currentActiveRecord) return;
-      const textToCopy = `[${currentActiveRecord.category} | ${currentActiveRecord.threat_impact}]\n${currentActiveRecord.title}\n\nSUMMARY:\n${currentActiveRecord.executive_summary}\n\nENTITIES: ${currentActiveRecord.entities.join(', ')}`;
-      navigator.clipboard.writeText(textToCopy);
-      alert('Executive summary copied to clipboard.');
-    }
-
-    // 7. Recent Dispatches List
-    async function fetchRecentDispatches() {
-      try {
-        const res = await fetch('/api/articles?limit=25');
-        if (res.ok) {
-          const list = await res.json();
-          allRecentArticles = list;
-          document.getElementById('recentCountBadge').textContent = list.length;
-          renderRecentList(list);
-        }
-      } catch (err) {
-        console.warn('Failed to fetch recent dispatches:', err);
-      }
-    }
-
-    function renderRecentList(articles) {
-      const container = document.getElementById('recentDispatchesList');
+    // 4. Render Ledger Cards with Chips
+    function renderLedger(articles) {
+      const container = document.getElementById('dispatchesLedgerContainer');
       if (!articles || articles.length === 0) {
         container.innerHTML = `
-          <div class="py-6 text-center text-xs text-slate-500 font-mono">
-            No indexed dispatches found.
+          <div class="py-8 text-center text-xs text-slate-500 font-mono border border-dashed border-brand-border rounded">
+            No dispatches matched [Category: ${currentCategory} | Horizon: ${currentDateFilter}]
           </div>
         `;
         return;
@@ -653,89 +563,320 @@
 
       container.innerHTML = articles.map(art => {
         let threatColor = 'text-emerald-400 border-emerald-500/40 bg-emerald-950/20';
-        if (art.threat_impact === 'CRITICAL') threatColor = 'text-red-400 border-red-500/40 bg-red-950/20';
-        else if (art.threat_impact === 'HIGH') threatColor = 'text-amber-400 border-amber-500/40 bg-amber-950/20';
+        if (art.threat_impact === 'CRITICAL') threatColor = 'text-red-400 border-red-500/40 bg-red-950/20 font-bold';
+        else if (art.threat_impact === 'HIGH') threatColor = 'text-amber-400 border-amber-500/40 bg-amber-950/20 font-bold';
         else if (art.threat_impact === 'MEDIUM') threatColor = 'text-yellow-400 border-yellow-500/40 bg-yellow-950/20';
+
+        // Platform & Entity Chips
+        const platformChips = (art.entities || []).slice(0, 4).map(e => `
+          <span class="px-1.5 py-0.5 rounded bg-brand-base border border-brand-border text-cyan-400 text-[10px] font-mono">
+            [${escapeHtml(e)}]
+          </span>
+        `).join('');
+
+        // Keyword tags
+        const keywordChips = (art.keywords || []).slice(0, 3).map(k => `
+          <span class="text-slate-500 text-[10px] font-mono">#${escapeHtml(k)}</span>
+        `).join(' ');
 
         return `
           <div 
-            onclick="loadArticleIntoView('${art.id}')"
-            class="py-3 px-2 flex items-center justify-between hover:bg-brand-subcard/50 rounded cursor-pointer transition-colors group"
+            id="dispatch-${art.id}"
+            onclick="openArticleModal('${art.id}')"
+            class="p-3.5 bg-brand-subcard/50 hover:bg-brand-subcard border border-brand-border hover:border-emerald-500 rounded-lg cursor-pointer transition-all space-y-2 group"
           >
-            <div class="flex-1 min-w-0 pr-4">
-              <div class="flex items-center space-x-2 mb-1">
-                <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-brand-base border border-brand-border text-slate-400">
+            <div class="flex items-center justify-between text-[11px] font-mono">
+              <div class="flex items-center space-x-1.5">
+                <span class="px-1.5 py-0.2 bg-brand-base border border-brand-border text-slate-300 font-bold rounded">
                   ${art.id}
                 </span>
-                <span class="text-[10px] font-mono px-1.5 py-0.2 rounded border ${threatColor}">
+                <span class="px-1.5 py-0.2 border border-brand-border text-cyan-300 uppercase rounded text-[10px]">
                   ${art.category}
                 </span>
-                <span class="text-[11px] text-slate-500 font-mono">
-                  ${art.date || (art.created_at ? art.created_at.substring(0, 10) : '')}
+                <span class="px-1.5 py-0.2 border ${threatColor} uppercase rounded text-[10px]">
+                  ${art.threat_impact}
                 </span>
               </div>
-              <h4 class="text-xs font-medium text-slate-300 group-hover:text-blue-400 transition-colors truncate">
-                ${escapeHtml(art.title)}
-              </h4>
+              <span class="text-slate-500 text-[10px]">
+                ${art.date || (art.created_at ? art.created_at.substring(0, 10) : '')}
+              </span>
             </div>
-            <div class="text-slate-500 group-hover:text-slate-300 text-xs font-mono">
-              View →
+
+            <h4 class="text-xs font-semibold text-slate-200 group-hover:text-emerald-400 transition-colors leading-snug">
+              ${escapeHtml(art.title)}
+            </h4>
+
+            <p class="text-[11px] text-slate-400 leading-relaxed font-sans line-clamp-2">
+              ${escapeHtml(art.executive_summary)}
+            </p>
+
+            <div class="pt-1.5 border-t border-brand-border/60 flex items-center justify-between">
+              <div class="flex flex-wrap gap-1 items-center">
+                ${platformChips}
+              </div>
+              <div class="flex items-center space-x-1">
+                ${keywordChips}
+              </div>
             </div>
           </div>
         `;
       }).join('');
     }
 
-    function handleRecentSearch(e) {
-      const q = e.target.value.toLowerCase().trim();
-      clearTimeout(searchDebounce);
-      searchDebounce = setTimeout(async () => {
-        if (!q) {
-          renderRecentList(allRecentArticles);
+    // 5. Ingestion with Client-Side Defensive Validation & SHA-256 Toast
+    async function handleIngestSubmit() {
+      const titleInput = document.getElementById('inputTitle');
+      const contentInput = document.getElementById('inputContent');
+      const sourceInput = document.getElementById('inputSource');
+
+      const title = titleInput.value.trim();
+      const content = contentInput.value.trim();
+      const source = sourceInput.value.trim() || 'OSINT Dispatch';
+
+      dismissAlert('clientErrorToast');
+      dismissAlert('collisionToast');
+      titleInput.classList.remove('border-input-error');
+      contentInput.classList.remove('border-input-error');
+
+      // Client-side validation: title >= 5, content >= 20
+      if (!title || title.length < 5) {
+        titleInput.classList.add('border-input-error');
+        showClientError('[INPUT ERROR: Title must be at least 5 characters for intelligence indexing]');
+        return;
+      }
+      if (!content || content.length < 20) {
+        contentInput.classList.add('border-input-error');
+        showClientError('[INPUT ERROR: Content must be at least 20 characters for triage]');
+        return;
+      }
+
+      const btn = document.getElementById('ingestBtn');
+      const spinner = document.getElementById('ingestSpinner');
+      const label = document.getElementById('ingestLabel');
+
+      btn.disabled = true;
+      spinner.classList.remove('hidden');
+      label.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, content, source })
+        });
+
+        if (res.status === 409) {
+          // Collision Detected Toast
+          const err = await res.json();
+          showCollisionToast(err.detail || '[SHA-256 COLLISION: Article already exists in database. Duplicate avoided]');
           return;
         }
-        try {
-          const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=25`);
-          if (res.ok) {
-            const data = await res.json();
-            renderRecentList(data.articles);
-          }
-        } catch {
-          const filtered = allRecentArticles.filter(a => 
-            a.title.toLowerCase().includes(q) || 
-            a.category.toLowerCase().includes(q) ||
-            a.content.toLowerCase().includes(q)
-          );
-          renderRecentList(filtered);
+
+        if (!res.ok) {
+          const err = await res.json();
+          showClientError(err.detail || 'Failed to ingest dispatch.');
+          return;
         }
-      }, 150);
-    }
 
-    function loadArticleIntoView(id) {
-      const art = allRecentArticles.find(a => a.id === id);
-      if (art) {
-        currentActiveRecord = art;
-        renderOutputCard(art);
-      }
-    }
+        // Success: clear inputs, update feed instantly
+        titleInput.value = '';
+        contentInput.value = '';
+        await fetchDispatches();
 
-    function setButtonLoading(loading) {
-      const btn = document.getElementById('analyzeBtn');
-      const spinner = document.getElementById('analyzeBtnSpinner');
-      const text = document.getElementById('analyzeBtnText');
-      const icon = document.getElementById('analyzeBtnIcon');
-
-      if (loading) {
-        btn.disabled = true;
-        spinner.classList.remove('hidden');
-        text.textContent = 'Agent Executing...';
-        icon.classList.add('hidden');
-      } else {
+      } catch (e) {
+        showClientError('Network transmission failure.');
+      } finally {
         btn.disabled = false;
         spinner.classList.add('hidden');
-        text.textContent = 'Analyze Dispatch';
-        icon.classList.remove('hidden');
+        label.classList.remove('hidden');
       }
+    }
+
+    function showClientError(msg) {
+      document.getElementById('clientErrorToastMsg').textContent = msg;
+      document.getElementById('clientErrorToast').classList.remove('hidden');
+    }
+
+    function showCollisionToast(msg) {
+      document.getElementById('collisionToastMsg').textContent = msg;
+      document.getElementById('collisionToast').classList.remove('hidden');
+    }
+
+    function dismissAlert(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    function loadSample(key) {
+      const s = SAMPLE_DISPATCHES[key];
+      if (s) {
+        document.getElementById('inputTitle').value = s.title;
+        document.getElementById('inputContent').value = s.content;
+        document.getElementById('inputSource').value = s.source;
+        dismissAlert('clientErrorToast');
+        dismissAlert('collisionToast');
+      }
+    }
+
+    // 6. Cross-Document Relational Synthesis
+    async function handleCrossDocumentSynthesis() {
+      const query = document.getElementById('crossInquiryInput').value.trim();
+      if (!query || query.length < 3) {
+        alert('Please enter an intelligence inquiry.');
+        return;
+      }
+
+      const btn = document.getElementById('synthesizeBtn');
+      const spinner = document.getElementById('synthSpinner');
+      const label = document.getElementById('synthLabel');
+      const trace = document.getElementById('synthTraceContainer');
+      const dossier = document.getElementById('synthDossierOutput');
+
+      btn.disabled = true;
+      spinner.classList.remove('hidden');
+      label.classList.add('hidden');
+      trace.classList.remove('hidden');
+      dossier.classList.add('hidden');
+
+      resetTrace();
+
+      try {
+        // Step 1
+        setTraceStep(1, 'active');
+        await sleep(150);
+        setTraceStep(1, 'completed');
+
+        // Step 2
+        setTraceStep(2, 'active');
+        await sleep(150);
+
+        const res = await fetch('/api/intel/synthesize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: query,
+            category: currentCategory !== 'ALL' ? currentCategory : null
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          setTraceStep(2, 'error');
+          alert(`[SYNTHESIS ERROR] ${err.detail || 'Server error'}`);
+          return;
+        }
+
+        setTraceStep(2, 'completed');
+
+        // Step 3
+        setTraceStep(3, 'active');
+        const data = await res.json();
+        await sleep(180);
+        setTraceStep(3, 'completed');
+        document.getElementById('traceStatusBadge').textContent = 'COMPLETED';
+        document.getElementById('traceStatusBadge').className = 'text-emerald-400 font-bold';
+
+        // Render synthesized dossier
+        renderCrossDossier(data);
+
+      } catch (e) {
+        alert('Synthesis network error.');
+      } finally {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+        label.classList.remove('hidden');
+      }
+    }
+
+    function resetTrace() {
+      document.getElementById('traceStatusBadge').textContent = 'ACTIVE';
+      document.getElementById('traceStatusBadge').className = 'text-amber-400';
+      for (let i = 1; i <= 3; i++) {
+        document.getElementById(`trace-${i}-icon`).textContent = '○';
+        document.getElementById(`trace-${i}-icon`).className = 'text-slate-500';
+      }
+    }
+
+    function setTraceStep(num, state) {
+      const icon = document.getElementById(`trace-${num}-icon`);
+      if (state === 'active') {
+        icon.textContent = '⚡';
+        icon.className = 'text-amber-400 font-bold animate-pulse';
+      } else if (state === 'completed') {
+        icon.textContent = '✓';
+        icon.className = 'text-emerald-400 font-bold';
+      } else if (state === 'error') {
+        icon.textContent = '✕';
+        icon.className = 'text-red-400 font-bold';
+      }
+    }
+
+    function renderCrossDossier(data) {
+      const output = document.getElementById('synthDossierOutput');
+      output.classList.remove('hidden');
+
+      document.getElementById('dossierAssessment').textContent = data.executive_assessment;
+
+      // Platforms
+      document.getElementById('dossierPlatforms').innerHTML = (data.related_platforms || []).map(p => `
+        <span class="px-2 py-0.5 rounded bg-brand-subcard border border-cyan-500/50 text-cyan-300 text-xs">
+          ◈ ${escapeHtml(p)}
+        </span>
+      `).join('');
+
+      // Chronological
+      document.getElementById('dossierChronology').innerHTML = (data.chronological_developments || []).map(c => `
+        <div class="pl-2 border-l-2 border-amber-500/60 leading-tight">
+          ${escapeHtml(c)}
+        </div>
+      `).join('');
+
+      // Clickable References
+      document.getElementById('dossierSources').innerHTML = (data.referenced_dispatch_ids || []).map(id => `
+        <button onclick="highlightDispatchCard('${id}')" class="px-2 py-1 rounded bg-brand-subcard border border-emerald-500 hover:bg-emerald-950/60 text-emerald-400 font-bold text-xs">
+          [REF: ${id}] ↗
+        </button>
+      `).join('');
+
+      output.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function highlightDispatchCard(id) {
+      const card = document.getElementById(`dispatch-${id}`);
+      if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.classList.add('ring-2', 'ring-emerald-400');
+        setTimeout(() => card.classList.remove('ring-2', 'ring-emerald-400'), 2500);
+      } else {
+        openArticleModal(id);
+      }
+    }
+
+    // 7. Modal Inspection
+    function openArticleModal(id) {
+      const art = articlesCache.find(a => a.id === id);
+      if (!art) return;
+
+      document.getElementById('modalId').textContent = art.id;
+      document.getElementById('modalCategory').textContent = art.category;
+      document.getElementById('modalThreat').textContent = art.threat_impact;
+      document.getElementById('modalTitle').textContent = art.title;
+      document.getElementById('modalSummary').textContent = art.executive_summary;
+      document.getElementById('modalContent').textContent = art.content;
+      document.getElementById('modalHash').textContent = art.content_hash;
+
+      document.getElementById('modalEntities').innerHTML = (art.entities || []).map(e => `
+        <span class="px-1.5 py-0.5 rounded bg-brand-card border border-brand-border text-cyan-300 text-[10px]">[${escapeHtml(e)}]</span>
+      `).join('');
+
+      document.getElementById('modalKeywords').innerHTML = (art.keywords || []).map(k => `
+        <span class="px-1.5 py-0.5 rounded bg-brand-card border border-brand-border text-slate-300 text-[10px]">#${escapeHtml(k)}</span>
+      `).join('');
+
+      document.getElementById('articleModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('articleModal').classList.add('hidden');
     }
 
     function escapeHtml(str) {
@@ -747,7 +888,8 @@
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
     }
-  </script>
 
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  </script>
 </body>
 </html>

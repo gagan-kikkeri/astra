@@ -22,6 +22,22 @@ CategoryEnum = Literal[
 ThreatImpact = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
 
+class ArticleIngestInput(BaseModel):
+    """Inbound OSINT dispatch payload with hardened defensive validation."""
+    title: str = Field(..., min_length=5, max_length=300, description="Dispatch headline or article title")
+    content: str = Field(..., min_length=20, description="Raw intelligence content or wire text")
+    source: Optional[str] = Field(default="OSINT Dispatch", description="Feed, agency, or publication source")
+    date: Optional[str] = Field(default=None, description="Report date or timestamp in ISO-8601 format")
+
+    @field_validator("title", "content")
+    @classmethod
+    def reject_blank_strings(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Field cannot be empty or pure whitespace.")
+        return stripped
+
+
 class StructuredExtraction(BaseModel):
     """Structured intelligence extraction schema produced by Gemini or deterministic fallback."""
     category: CategoryEnum = Field(
@@ -30,7 +46,7 @@ class StructuredExtraction(BaseModel):
     )
     executive_summary: str = Field(
         ...,
-        description="Exactly 2 concise, factual sentences summarizing the tactical intelligence"
+        description="Exactly two factual sentences summarizing the tactical impact."
     )
     threat_impact: ThreatImpact = Field(
         ...,
@@ -38,27 +54,14 @@ class StructuredExtraction(BaseModel):
     )
     keywords: List[str] = Field(
         ...,
+        min_length=3,
+        max_length=6,
         description="3 to 6 normalized intelligence topic tags"
     )
     entities: List[str] = Field(
         ...,
-        description="Military platforms, national actors, manufacturers, or organizations"
+        description="Identified platforms, weapon systems, military branches, or organizations."
     )
-
-
-class ArticleIngestInput(BaseModel):
-    """Inbound OSINT dispatch payload for ingestion."""
-    title: str = Field(..., min_length=1, description="Dispatch headline or article title")
-    content: str = Field(..., min_length=1, description="Raw intelligence content or wire text")
-    source: Optional[str] = Field(default="OSINT Dispatch", description="Feed, agency, or publication source")
-    date: Optional[str] = Field(default=None, description="Report date or timestamp in ISO-8601 format")
-
-    @field_validator("title", "content")
-    @classmethod
-    def validate_not_blank(cls, v: str) -> str:
-        if not v or not v.strip():
-            raise ValueError("Field cannot be empty or contain only blank whitespace")
-        return v.strip()
 
 
 class ArticleRecord(ArticleIngestInput, StructuredExtraction):
@@ -66,6 +69,29 @@ class ArticleRecord(ArticleIngestInput, StructuredExtraction):
     id: str = Field(..., description="Unique alphanumeric identifier (e.g., AST-8A4F12)")
     content_hash: str = Field(..., description="Deterministic SHA-256 fingerprint")
     created_at: str = Field(..., description="System ingestion timestamp (ISO-8601)")
+
+
+class CrossDocumentSynthesisResponse(BaseModel):
+    """Cross-document intelligence briefing connecting dispatches across SQLite FTS5."""
+    inquiry: str = Field(..., description="Operator natural language query")
+    executive_assessment: str = Field(..., description="Integrated cross-document briefing assessment")
+    related_platforms: List[str] = Field(..., description="Platforms and weapon systems connected across articles")
+    chronological_developments: List[str] = Field(..., description="Reconstructed chronological timeline events")
+    referenced_dispatch_ids: List[str] = Field(..., description="Dispatch IDs cited as ground truth")
+
+
+class SynthesizeRequest(BaseModel):
+    """Inquiry payload for cross-document intelligence synthesis."""
+    query: str = Field(..., min_length=3, description="Natural language operator inquiry")
+    category: Optional[str] = Field(default=None, description="Optional taxonomy category filter")
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Inquiry cannot be empty.")
+        return stripped
 
 
 class AgentStep(BaseModel):
@@ -78,16 +104,17 @@ class AgentStep(BaseModel):
 
 class AnalyzeInput(BaseModel):
     """Input payload for the unified single-flow agent interface (text or URL)."""
-    text_or_url: str = Field(..., min_length=1, description="Raw dispatch text, wire excerpt, or article URL")
+    text_or_url: str = Field(..., min_length=5, description="Raw dispatch text, wire excerpt, or article URL")
     source: Optional[str] = Field(default=None, description="Optional source or feed attribution")
     date: Optional[str] = Field(default=None, description="Optional publication date")
 
     @field_validator("text_or_url")
     @classmethod
     def validate_not_blank(cls, v: str) -> str:
-        if not v or not v.strip():
+        stripped = v.strip()
+        if not stripped:
             raise ValueError("Input cannot be empty or contain only blank whitespace")
-        return v.strip()
+        return stripped
 
 
 class AnalyzeResponse(BaseModel):
@@ -117,9 +144,10 @@ class SitRepRequest(BaseModel):
     @field_validator("topic")
     @classmethod
     def validate_topic(cls, v: str) -> str:
-        if not v or not v.strip():
+        stripped = v.strip()
+        if not stripped:
             raise ValueError("Topic cannot be empty")
-        return v.strip()
+        return stripped
 
 
 class SitRepResponse(BaseModel):
@@ -149,6 +177,7 @@ class SystemTelemetry(BaseModel):
     wal_mode: bool
     fts5_active: bool
     triage_mode: str
+    gemini_online: bool
     categories_breakdown: Dict[str, int]
     threat_breakdown: Dict[str, int]
     latest_ingest_time: Optional[str] = None

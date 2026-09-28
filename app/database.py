@@ -1,11 +1,13 @@
 """
 Persistent storage engine for ASTRA Sentinel.
-Implements SQLite connection with Write-Ahead Logging (WAL) and FTS5 synchronization.
+Implements SQLite connection with Write-Ahead Logging (WAL), FTS5 synchronization,
+dual category and date-horizon filtering, and full-text querying.
 """
 
 import json
 import sqlite3
 import logging
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple
 from app.config import settings
@@ -174,24 +176,62 @@ def get_article_by_id(article_id: str) -> Optional[ArticleRecord]:
         conn.close()
 
 
-def list_articles(category: Optional[str] = None, limit: int = 50) -> List[ArticleRecord]:
-    """Lists articles ordered by ingestion timestamp descending."""
+def get_date_cutoff(date_filter: Optional[str]) -> Optional[str]:
+    """Converts a horizon keyword (24H, 7D, 30D) to an ISO YYYY-MM-DD cutoff."""
+    if not date_filter or date_filter.upper() == "ALL":
+        return None
+    now = datetime.now(timezone.utc)
+    df = date_filter.upper()
+    if df == "24H":
+        return (now - timedelta(hours=24)).strftime("%Y-%m-%d")
+    elif df == "7D":
+        return (now - timedelta(days=7)).strftime("%Y-%m-%d")
+    elif df == "30D":
+        return (now - timedelta(days=30)).strftime("%Y-%m-%d")
+    return None
+
+
+def list_articles(
+    category: Optional[str] = None,
+    date_filter: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: int = 50
+) -> List[ArticleRecord]:
+    """
+    Lists articles ordered by ingestion timestamp descending,
+    with dual filtering by taxonomy category and date horizon/range.
+    """
     conn = get_db_connection()
     try:
         cur = conn.cursor()
-        if category and category.strip() and category.upper() != "ALL":
-            cur.execute("""
-            SELECT * FROM articles 
-            WHERE category = ? COLLATE NOCASE
-            ORDER BY created_at DESC 
-            LIMIT ?
-            """, (category.strip(), limit))
-        else:
-            cur.execute("""
-            SELECT * FROM articles 
-            ORDER BY created_at DESC 
-            LIMIT ?
-            """, (limit,))
+        
+        # Prepare filters
+        cat_filter = category.strip() if category and category.strip() and category.upper() != "ALL" else None
+        horizon_cutoff = get_date_cutoff(date_filter)
+        start_bound = start_date.strip() if start_date and start_date.strip() else horizon_cutoff
+        end_bound = end_date.strip() if end_date and end_date.strip() else None
+
+        conditions = []
+        params = []
+
+        if cat_filter:
+            conditions.append("category = ? COLLATE NOCASE")
+            params.append(cat_filter)
+
+        if start_bound:
+            conditions.append("COALESCE(published_date, substr(created_at, 1, 10)) >= ?")
+            params.append(start_bound)
+
+        if end_bound:
+            conditions.append("COALESCE(published_date, substr(created_at, 1, 10)) <= ?")
+            params.append(end_bound)
+
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        sql = f"SELECT * FROM articles {where_clause} ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+
+        cur.execute(sql, tuple(params))
         rows = cur.fetchall()
         return [row_to_article(r) for r in rows]
     finally:
@@ -201,51 +241,62 @@ def list_articles(category: Optional[str] = None, limit: int = 50) -> List[Artic
 def search_articles_hybrid(
     query_str: str,
     category: Optional[str] = None,
+    date_filter: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     limit: int = 50
 ) -> Tuple[List[ArticleRecord], str]:
     """
-    Executes BM25 ranked FTS5 search.
+    Executes BM25 ranked FTS5 search with category and date filtering.
     If the user enters invalid FTS5 syntax, degrades gracefully into SQL LIKE search.
     Returns (articles, engine_used).
     """
     clean_query = query_str.strip() if query_str else ""
-    cat_filter = category.strip() if category and category.upper() != "ALL" else None
-    conn = get_db_connection()
+    cat_filter = category.strip() if category and category.strip() and category.upper() != "ALL" else None
+    horizon_cutoff = get_date_cutoff(date_filter)
+    start_bound = start_date.strip() if start_date and start_date.strip() else horizon_cutoff
+    end_bound = end_date.strip() if end_date and end_date.strip() else None
 
+    if not clean_query:
+        return list_articles(
+            category=cat_filter,
+            date_filter=date_filter,
+            start_date=start_bound,
+            end_date=end_bound,
+            limit=limit
+        ), "SQL_RECENCY"
+
+    conn = get_db_connection()
     try:
         cur = conn.cursor()
 
-        if not clean_query:
-            # No query text; return filtered or recent articles
-            return list_articles(category=cat_filter, limit=limit), "SQL_RECENCY"
-
         # Attempt FTS5 query with BM25 ranking
         try:
-            # Sanitize or wrap tokens if needed, or pass directly to match
-            # FTS5 supports column filters or bare terms
-            fts_match_expr = clean_query
+            fts_conditions = ["articles_fts MATCH ?"]
+            fts_params = [clean_query]
 
             if cat_filter:
-                sql = """
-                SELECT articles.*, articles_fts.rank
-                FROM articles_fts
-                JOIN articles ON articles_fts.id = articles.id
-                WHERE articles_fts MATCH ? AND articles.category = ? COLLATE NOCASE
-                ORDER BY articles_fts.rank
-                LIMIT ?
-                """
-                cur.execute(sql, (fts_match_expr, cat_filter, limit))
-            else:
-                sql = """
-                SELECT articles.*, articles_fts.rank
-                FROM articles_fts
-                JOIN articles ON articles_fts.id = articles.id
-                WHERE articles_fts MATCH ?
-                ORDER BY articles_fts.rank
-                LIMIT ?
-                """
-                cur.execute(sql, (fts_match_expr, limit))
+                fts_conditions.append("articles.category = ? COLLATE NOCASE")
+                fts_params.append(cat_filter)
 
+            if start_bound:
+                fts_conditions.append("COALESCE(articles.published_date, substr(articles.created_at, 1, 10)) >= ?")
+                fts_params.append(start_bound)
+
+            if end_bound:
+                fts_conditions.append("COALESCE(articles.published_date, substr(articles.created_at, 1, 10)) <= ?")
+                fts_params.append(end_bound)
+
+            fts_sql = f"""
+            SELECT articles.*, articles_fts.rank
+            FROM articles_fts
+            JOIN articles ON articles_fts.id = articles.id
+            WHERE {' AND '.join(fts_conditions)}
+            ORDER BY articles_fts.rank
+            LIMIT ?
+            """
+            fts_params.append(limit)
+            cur.execute(fts_sql, tuple(fts_params))
             rows = cur.fetchall()
             return [row_to_article(r) for r in rows], "FTS5_BM25"
 
@@ -254,34 +305,47 @@ def search_articles_hybrid(
             
             # Graceful fallback: SQL LIKE wildcard search
             like_param = f"%{clean_query}%"
-            if cat_filter:
-                sql_like = """
-                SELECT * FROM articles
-                WHERE (
-                    title LIKE ? OR content LIKE ? OR summary LIKE ?
-                    OR keywords LIKE ? OR entities LIKE ?
-                ) AND category = ? COLLATE NOCASE
-                ORDER BY created_at DESC
-                LIMIT ?
-                """
-                cur.execute(sql_like, (like_param, like_param, like_param, like_param, like_param, cat_filter, limit))
-            else:
-                sql_like = """
-                SELECT * FROM articles
-                WHERE (
-                    title LIKE ? OR content LIKE ? OR summary LIKE ?
-                    OR keywords LIKE ? OR entities LIKE ?
-                )
-                ORDER BY created_at DESC
-                LIMIT ?
-                """
-                cur.execute(sql_like, (like_param, like_param, like_param, like_param, like_param, limit))
+            like_conditions = [
+                "(title LIKE ? OR content LIKE ? OR summary LIKE ? OR keywords LIKE ? OR entities LIKE ?)"
+            ]
+            like_params = [like_param, like_param, like_param, like_param, like_param]
 
+            if cat_filter:
+                like_conditions.append("category = ? COLLATE NOCASE")
+                like_params.append(cat_filter)
+
+            if start_bound:
+                like_conditions.append("COALESCE(published_date, substr(created_at, 1, 10)) >= ?")
+                like_params.append(start_bound)
+
+            if end_bound:
+                like_conditions.append("COALESCE(published_date, substr(created_at, 1, 10)) <= ?")
+                like_params.append(end_bound)
+
+            like_sql = f"""
+            SELECT * FROM articles
+            WHERE {' AND '.join(like_conditions)}
+            ORDER BY created_at DESC
+            LIMIT ?
+            """
+            like_params.append(limit)
+            cur.execute(like_sql, tuple(like_params))
             rows = cur.fetchall()
             return [row_to_article(r) for r in rows], "SQL_LIKE_FALLBACK"
 
     finally:
         conn.close()
+
+
+def query_fts5(query_text: str, category_filter: Optional[str] = None, limit: int = 8) -> List[ArticleRecord]:
+    """Helper specifically for RAG cross-document synthesis retrieval."""
+    articles, _ = search_articles_hybrid(query_str=query_text, category=category_filter, limit=limit)
+    return articles
+
+
+def get_latest_dispatches(limit: int = 6) -> List[ArticleRecord]:
+    """Retrieves the most recent dispatches for context augmentation."""
+    return list_articles(limit=limit)
 
 
 def get_database_telemetry() -> Dict[str, Any]:

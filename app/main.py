@@ -1,6 +1,7 @@
 """
 FastAPI Server, REST API Endpoints, and Static Mounting for ASTRA Sentinel.
-Provides the operational C2 backend and bootstraps starter intelligence data on startup.
+Provides the operational C2 backend, cross-document intelligence synthesis,
+dual date-horizon filtering, and starter intelligence bootstrapping.
 """
 
 import os
@@ -23,7 +24,9 @@ from app.models import (
     SitRepResponse,
     SystemTelemetry,
     AnalyzeInput,
-    AnalyzeResponse
+    AnalyzeResponse,
+    SynthesizeRequest,
+    CrossDocumentSynthesisResponse
 )
 from app.database import (
     init_db,
@@ -33,7 +36,7 @@ from app.database import (
     get_database_telemetry
 )
 from app.processor import process_and_ingest_article, analyze_and_process_dispatch
-from app.intelligence import execute_search, generate_sitrep
+from app.intelligence import execute_search, generate_sitrep, synthesize_cross_intelligence
 
 
 @asynccontextmanager
@@ -45,7 +48,6 @@ async def lifespan(app: FastAPI):
     logger.info("[STARTUP] Initializing ASTRA Sentinel Intelligence Core...")
     init_db()
 
-    # Automatic bootstrap routine: Seed starter articles if ledger is empty
     conn = get_db_connection()
     try:
         cur = conn.cursor()
@@ -94,7 +96,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="ASTRA SENTINEL",
     description="Autonomous Defence Intelligence Agent Interface & Threat Monitor",
-    version="2.0.0",
+    version="2.5.0",
     lifespan=lifespan
 )
 
@@ -128,14 +130,72 @@ async def health_check():
     return {
         "status": "operational",
         "system": "ASTRA SENTINEL",
-        "version": "2.0.0",
+        "version": "2.5.0",
         "wal_mode": telemetry["wal_mode"],
         "fts5_active": telemetry["fts5_active"],
         "triage_mode": triage_mode,
+        "gemini_online": settings.has_gemini_key,
         "timeout_seconds": settings.REQUEST_TIMEOUT,
         "document_count": telemetry["total_articles"],
         "active_categories": telemetry["active_categories"]
     }
+
+
+@app.get("/api/engine/check")
+async def engine_connectivity_check():
+    """Validates connectivity to Gemini AI services."""
+    if not settings.has_gemini_key:
+        return {
+            "online": False,
+            "engine": "OFFLINE",
+            "reason": "GEMINI_API_KEY is not configured in environment.",
+            "mode": "deterministic-rule-based"
+        }
+    
+    try:
+        from google import genai
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        # Quick lightweight connectivity check
+        resp = client.models.generate_content(
+            model=settings.MODEL_NAME,
+            contents="Respond with 'PONG'",
+        )
+        return {
+            "online": True,
+            "engine": "GEMINI-2.5-FLASH",
+            "status": "ONLINE"
+        }
+    except Exception as e:
+        logger.error(f"[ENGINE CHECK ERROR] {e}")
+        return {
+            "online": False,
+            "engine": "OFFLINE",
+            "reason": f"Connection error: {str(e)}",
+            "mode": "deterministic-rule-based"
+        }
+
+
+@app.post("/api/intel/synthesize", response_model=CrossDocumentSynthesisResponse)
+async def synthesize_cross_document_briefing(payload: SynthesizeRequest):
+    """
+    RAG-powered cross-document relational intelligence synthesis.
+    Correlates multiple FTS5 dispatches and synthesizes an integrated dossier.
+    """
+    return synthesize_cross_intelligence(query_text=payload.query, category_filter=payload.category)
+
+
+@app.post("/api/ingest", response_model=ArticleRecord, status_code=status.HTTP_200_OK)
+@app.post("/api/articles", response_model=ArticleRecord, status_code=status.HTTP_200_OK)
+@app.post("/articles", response_model=ArticleRecord, status_code=status.HTTP_200_OK)
+async def ingest_article(payload: ArticleIngestInput):
+    """
+    Standard article ingestion endpoint with hardened defensive validation:
+    - Rejects title < 5 chars and content < 20 chars with HTTP 422.
+    - Computes deterministic SHA-256 fingerprint.
+    - Rejects exact duplicate submissions with HTTP 409 Conflict.
+    - Synchronizes document into SQLite WAL + FTS5 index.
+    """
+    return process_and_ingest_article(payload)
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse, status_code=status.HTTP_200_OK)
@@ -151,37 +211,26 @@ async def analyze_dispatch(payload: AnalyzeInput):
     return analyze_and_process_dispatch(payload)
 
 
-@app.post("/api/ingest", response_model=ArticleRecord, status_code=status.HTTP_200_OK)
-async def ingest_article(payload: ArticleIngestInput):
-    """
-    Standard article ingestion endpoint (Title + Content):
-    - Computes deterministic SHA-256 fingerprint.
-    - Rejects exact duplicate submissions with HTTP 409 Conflict.
-    - Synchronizes document into SQLite FTS5 index.
-    """
-    return process_and_ingest_article(payload)
-
-
-@app.get("/api/search", response_model=SearchResponse)
-async def search_wire(
-    q: str = Query(default="", description="Search query string or military acronym"),
-    category: Optional[str] = Query(default=None, description="Taxonomy category filter"),
-    limit: int = Query(default=50, ge=1, le=100, description="Max results")
-):
-    """
-    Query bar endpoint executing BM25-ranked FTS5 searches
-    with microsecond execution latency readout and SQL LIKE fallback.
-    """
-    return execute_search(query_str=q, category=category, limit=limit)
-
-
 @app.get("/api/articles", response_model=List[ArticleRecord])
+@app.get("/articles", response_model=List[ArticleRecord])
 async def get_articles(
-    category: Optional[str] = Query(default=None, description="Optional category filter"),
+    category: Optional[str] = Query(default=None, description="Optional category filter (ALL, Aerospace, etc.)"),
+    date_filter: Optional[str] = Query(default=None, description="Horizon filter (ALL, 24H, 7D, 30D)"),
+    start_date: Optional[str] = Query(default=None, description="ISO Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(default=None, description="ISO End date (YYYY-MM-DD)"),
     limit: int = Query(default=50, ge=1, le=100)
 ):
-    """Returns chronologically ordered dispatches from the intelligence wire."""
-    return list_articles(category=category, limit=limit)
+    """
+    Returns chronologically ordered dispatches supporting dual category
+    and date-horizon / ISO date-range parameters.
+    """
+    return list_articles(
+        category=category,
+        date_filter=date_filter,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit
+    )
 
 
 @app.get("/api/articles/{article_id}", response_model=ArticleRecord)
@@ -194,6 +243,29 @@ async def get_single_article(article_id: str):
             detail=f"Intelligence record {article_id} not found in database."
         )
     return article
+
+
+@app.get("/api/search", response_model=SearchResponse)
+async def search_wire(
+    q: str = Query(default="", description="Search query string or military acronym"),
+    category: Optional[str] = Query(default=None, description="Taxonomy category filter"),
+    date_filter: Optional[str] = Query(default=None, description="Horizon filter (ALL, 24H, 7D, 30D)"),
+    start_date: Optional[str] = Query(default=None, description="ISO Start date"),
+    end_date: Optional[str] = Query(default=None, description="ISO End date"),
+    limit: int = Query(default=50, ge=1, le=100, description="Max results")
+):
+    """
+    Query bar endpoint executing BM25-ranked FTS5 searches
+    with microsecond execution latency readout and SQL LIKE fallback.
+    """
+    return execute_search(
+        query_str=q,
+        category=category,
+        date_filter=date_filter,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit
+    )
 
 
 @app.post("/api/sitrep", response_model=SitRepResponse)
@@ -217,6 +289,7 @@ async def get_stats():
         wal_mode=raw["wal_mode"],
         fts5_active=raw["fts5_active"],
         triage_mode=triage_mode,
+        gemini_online=settings.has_gemini_key,
         categories_breakdown=raw["categories_breakdown"],
         threat_breakdown=raw["threat_breakdown"],
         latest_ingest_time=raw["latest_ingest_time"]
