@@ -1,6 +1,7 @@
 """
 Comprehensive automated test suite for ASTRA Sentinel.
-Tests ingestion, SHA-256 deduplication, validation, FTS5 search, and SitRep synthesis.
+Tests ingestion, SHA-256 deduplication, validation, FTS5 search, SitRep synthesis,
+and the unified autonomous agent execution pipeline with network error verification.
 """
 
 import os
@@ -21,7 +22,6 @@ def test_environment(tmp_path_factory):
     settings.DB_PATH = str(test_db_path)
     init_db()
     yield
-    # Cleanup if needed
     if test_db_path.exists():
         try:
             os.remove(test_db_path)
@@ -186,7 +186,7 @@ def test_sitrep_generation(client: TestClient):
 def test_health_and_telemetry(client: TestClient):
     """
     Verifies /api/health and /api/stats return operational telemetry,
-    verifying WAL mode, FTS5 status, and category breakdowns.
+    verifying WAL mode, FTS5 status, category breakdowns, and network timeouts.
     """
     health_res = client.get("/api/health")
     assert health_res.status_code == 200
@@ -195,6 +195,7 @@ def test_health_and_telemetry(client: TestClient):
     assert health["wal_mode"] is True
     assert health["fts5_active"] is True
     assert health["document_count"] > 0
+    assert "timeout_seconds" in health
 
     stats_res = client.get("/api/stats")
     assert stats_res.status_code == 200
@@ -203,3 +204,74 @@ def test_health_and_telemetry(client: TestClient):
     assert stats["active_categories"] > 0
     assert isinstance(stats["categories_breakdown"], dict)
     assert isinstance(stats["threat_breakdown"], dict)
+
+
+def test_analyze_agent_execution_flow(client: TestClient):
+    """
+    Verifies the unified single-flow agent execution endpoint (/api/analyze).
+    Asserts 4 sequential steps in agent_trace, domain classification, entity extraction,
+    and executive summary synthesis.
+    """
+    text_payload = {
+        "text_or_url": "Next-Generation Fighter Jet Stealth Coating Validated in Radar Chamber.\n\nAir force material scientists tested a radar-absorbent nanostructured polymer skin applied to 5th-gen fighter aircraft wings. Electromagnetic chamber trials confirmed a 40% reduction in X-band AESA radar reflection cross-section under supersonic flight simulation."
+    }
+    res = client.post("/api/analyze", json=text_payload)
+    assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
+
+    data = res.json()
+    assert data["id"].startswith("AST-")
+    assert data["category"] in [
+        "Aerospace", "Naval", "Land Systems", "Cybersecurity",
+        "Space", "AI/Robotics", "Defence Technology"
+    ]
+    assert data["category"] == "Aerospace"
+    assert "executive_summary" in data
+    assert len(data["executive_summary"]) > 20
+    assert isinstance(data["entities"], list)
+    assert len(data["entities"]) >= 1
+
+    # Verify 4 sequential agent steps
+    trace = data.get("agent_trace", [])
+    assert len(trace) == 4
+    assert trace[0]["step_num"] == 1
+    assert "hash integrity" in trace[0]["name"].lower()
+    assert trace[1]["step_num"] == 2
+    assert "classifying" in trace[1]["name"].lower()
+    assert trace[2]["step_num"] == 3
+    assert "extracting" in trace[2]["name"].lower()
+    assert trace[3]["step_num"] == 4
+    assert "synthesizing" in trace[3]["name"].lower()
+
+
+def test_analyze_duplicate_collision(client: TestClient):
+    """
+    Verifies duplicate prevention gate on /api/analyze:
+    Submitting the exact same content returns HTTP 409 Conflict.
+    """
+    payload = {
+        "text_or_url": "Air-Gapped Telemetry Sensor Breach Simulated in Red Team Drill.\n\nCyber combat teams demonstrated acoustic exfiltration vectors against air-gapped SCADA systems in hardened command shelters."
+    }
+    # First submission
+    r1 = client.post("/api/analyze", json=payload)
+    assert r1.status_code == 200
+
+    # Duplicate submission
+    r2 = client.post("/api/analyze", json=payload)
+    assert r2.status_code == 409
+    assert "DUPLICATE DETECTED" in r2.json()["detail"]
+
+
+def test_analyze_network_resolution_error(client: TestClient):
+    """
+    Verifies graceful network error handling on /api/analyze:
+    When an unreachable or unresolvable domain is submitted, the backend raises
+    HTTP 502 with a clear network resolution diagnostic message rather than
+    silently falling back without user feedback.
+    """
+    invalid_url_payload = {
+        "text_or_url": "https://nonexistent-military-domain-xyz-404.mil/report"
+    }
+    res = client.post("/api/analyze", json=invalid_url_payload)
+    assert res.status_code == 502
+    detail = res.json().get("detail", "")
+    assert "Network" in detail or "resolution" in detail or "reach" in detail

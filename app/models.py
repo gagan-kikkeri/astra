@@ -68,6 +68,46 @@ class ArticleRecord(ArticleIngestInput, StructuredExtraction):
     created_at: str = Field(..., description="System ingestion timestamp (ISO-8601)")
 
 
+class AgentStep(BaseModel):
+    """Individual execution step in the autonomous agent trace."""
+    step_num: int
+    name: str
+    status: str = "completed"
+    detail: str
+
+
+class AnalyzeInput(BaseModel):
+    """Input payload for the unified single-flow agent interface (text or URL)."""
+    text_or_url: str = Field(..., min_length=1, description="Raw dispatch text, wire excerpt, or article URL")
+    source: Optional[str] = Field(default=None, description="Optional source or feed attribution")
+    date: Optional[str] = Field(default=None, description="Optional publication date")
+
+    @field_validator("text_or_url")
+    @classmethod
+    def validate_not_blank(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Input cannot be empty or contain only blank whitespace")
+        return v.strip()
+
+
+class AnalyzeResponse(BaseModel):
+    """Unified response payload for the autonomous intelligence agent."""
+    id: str
+    content_hash: str
+    title: str
+    content: str
+    source: str
+    date: str
+    created_at: str
+    category: CategoryEnum
+    threat_impact: ThreatImpact
+    executive_summary: str
+    entities: List[str]
+    keywords: List[str]
+    engine_used: str
+    agent_trace: List[AgentStep]
+
+
 class SitRepRequest(BaseModel):
     """Tactical Situation Report synthesis request."""
     topic: str = Field(..., min_length=1, description="Tactical topic or theater query")

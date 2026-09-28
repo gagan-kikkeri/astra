@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ASTRA SENTINEL // Tactical Defence OSINT Terminal</title>
-  
-  <!-- Fonts: IBM Plex Mono & JetBrains Mono for authentic Bloomberg/C2 aesthetic -->
+  <title>ASTRA Sentinel - Intelligence Agent</title>
+
+  <!-- Google Fonts: Inter for clean typography & JetBrains Mono for code/tags -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
-  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -18,15 +18,12 @@
       theme: {
         extend: {
           colors: {
-            tactical: {
-              base: '#080b0f',
-              panel: '#0f141c',
-              subpanel: '#141b24',
-              border: '#1e293b',
-              borderLight: '#334155',
-              text: '#cbd5e1',
-              muted: '#64748b',
-              dim: '#475569',
+            brand: {
+              base: '#0a0e17',
+              card: '#111827',
+              subcard: '#161f30',
+              border: '#1f293d',
+              borderLight: '#2e3d57',
               emerald: '#10b981',
               amber: '#f59e0b',
               crimson: '#ef4444',
@@ -35,7 +32,8 @@
             }
           },
           fontFamily: {
-            mono: ['"IBM Plex Mono"', '"JetBrains Mono"', 'monospace']
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace']
           }
         }
       }
@@ -43,1082 +41,703 @@
   </script>
 
   <style>
-    /* Tactical Scanline & CRT Subtle Vignette */
     body {
-      background-color: #080b0f;
-      color: #cbd5e1;
-      font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
-      margin: 0;
-      padding: 0;
-      overflow-x: hidden;
+      background-color: #0a0e17;
+      color: #e2e8f0;
+      font-family: 'Inter', system-ui, sans-serif;
     }
 
-    /* Sharp corners & Monospace UI */
-    * {
-      border-radius: 0px !important;
-      box-sizing: border-box;
+    /* Pulse animation for agent status */
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.15); }
+    }
+    .status-pulse {
+      animation: pulseGlow 2s infinite ease-in-out;
     }
 
-    /* Scrollbars */
+    /* Spinner animation */
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .agent-spinner {
+      animation: spin 0.9s linear infinite;
+    }
+
+    /* Subtle custom scrollbars */
     ::-webkit-scrollbar {
-      width: 5px;
-      height: 5px;
+      width: 6px;
+      height: 6px;
     }
     ::-webkit-scrollbar-track {
-      background: #080b0f;
+      background: #0a0e17;
     }
     ::-webkit-scrollbar-thumb {
-      background: #1e293b;
-      border: 1px solid #334155;
+      background: #1f293d;
+      border-radius: 3px;
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: #10b981;
-    }
-
-    /* Tactical Pulsing Indicators */
-    @keyframes radarPulse {
-      0% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.3; transform: scale(1.15); }
-      100% { opacity: 1; transform: scale(1); }
-    }
-    .radar-pulse {
-      animation: radarPulse 2s infinite ease-in-out;
-    }
-
-    @keyframes warningFlash {
-      0%, 100% { border-color: #f59e0b; background-color: rgba(245, 158, 11, 0.15); }
-      50% { border-color: #ef4444; background-color: rgba(239, 68, 68, 0.25); }
-    }
-    .collision-flash {
-      animation: warningFlash 0.8s infinite ease-in-out;
-    }
-
-    .border-glow-emerald:focus {
-      outline: none;
-      border-color: #10b981;
-      box-shadow: 0 0 0 1px #10b981;
-    }
-    
-    .text-shadow-tactical {
-      text-shadow: 0 0 3px rgba(16, 185, 129, 0.5);
+      background: #3b82f6;
     }
   </style>
 </head>
-<body class="bg-tactical-base text-tactical-text antialiased min-h-screen flex flex-col select-none text-xs">
+<body class="min-h-screen flex flex-col antialiased selection:bg-blue-600 selection:text-white">
 
   <!-- ========================================================================= -->
-  <!-- TOP TACTICAL NAVIGATION BAR (C2 HEADER)                                   -->
+  <!-- HEADER: CLEAN, MINIMAL TITLE WITH STATUS DOT                              -->
   <!-- ========================================================================= -->
-  <header class="border-b border-tactical-border bg-tactical-panel px-4 py-2.5 flex items-center justify-between text-xs tracking-wider">
-    <div class="flex items-center space-x-3">
-      <div class="flex items-center space-x-2">
-        <span class="w-2.5 h-2.5 bg-tactical-emerald radar-pulse inline-block"></span>
-        <span class="font-extrabold text-sm tracking-widest text-white">ASTRA SENTINEL</span>
+  <header class="border-b border-brand-border bg-brand-base/80 backdrop-blur-md sticky top-0 z-40">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      
+      <!-- Title & Status -->
+      <div class="flex items-center space-x-3">
+        <div class="relative flex items-center justify-center">
+          <span class="w-2.5 h-2.5 bg-brand-emerald rounded-full status-pulse"></span>
+          <span class="absolute w-4 h-4 bg-brand-emerald/20 rounded-full animate-ping"></span>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold text-white tracking-tight flex items-center space-x-2">
+            <span>ASTRA Sentinel</span>
+            <span class="text-slate-500 font-normal">/</span>
+            <span class="text-slate-300 font-medium text-sm sm:text-base">Intelligence Agent</span>
+          </h1>
+        </div>
       </div>
-      <span class="text-tactical-dim">|</span>
-      <span class="text-tactical-emerald font-bold text-shadow-tactical">TACTICAL DEFENCE OSINT C2 TERMINAL</span>
-      <span class="text-tactical-dim">|</span>
-      <span class="px-1.5 py-0.5 bg-tactical-subpanel border border-tactical-border text-tactical-muted text-[10px]">VER 1.0.4-PROD</span>
-    </div>
 
-    <!-- Telemetry Badges -->
-    <div class="flex items-center space-x-4">
-      <div class="hidden md:flex items-center space-x-2">
-        <span class="text-tactical-dim">ENGINE:</span>
-        <span id="headerEngineBadge" class="text-tactical-cyan font-semibold">INITIALIZING...</span>
+      <!-- Engine Badge -->
+      <div class="flex items-center space-x-2 text-xs">
+        <span class="hidden sm:inline text-slate-400">ENGINE:</span>
+        <span id="engineBadge" class="px-2 py-0.5 rounded bg-brand-subcard border border-brand-border text-brand-cyan font-mono text-[11px] font-medium">
+          CONNECTING...
+        </span>
       </div>
-      <div class="hidden sm:flex items-center space-x-2">
-        <span class="text-tactical-dim">DATABASE:</span>
-        <span id="headerDbBadge" class="text-tactical-emerald font-semibold">SQLITE [WAL+FTS5]</span>
-      </div>
-      <div class="flex items-center space-x-2 border-l border-tactical-border pl-4">
-        <span class="text-tactical-dim">DTG (UTC):</span>
-        <span id="liveClock" class="text-white font-mono font-bold tracking-widest">--:--:--Z</span>
-      </div>
+
     </div>
   </header>
 
   <!-- ========================================================================= -->
-  <!-- 3-PANE OPERATIONAL WORKSTATION                                            -->
+  <!-- MAIN SINGLE-COLUMN AGENT FLOW CONTAINER                                   -->
   <!-- ========================================================================= -->
-  <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden min-h-[calc(100vh-42px)]">
+  <main class="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 space-y-6">
+
+    <!-- CONNECTION ISSUE ALERT BANNER (Revealed on network resolution error) -->
+    <div id="connectionAlert" class="hidden p-4 rounded-lg border border-red-500/40 bg-red-950/30 text-red-200 text-sm flex items-start space-x-3 transition-all">
+      <span class="text-red-400 text-lg leading-none mt-0.5">⚠️</span>
+      <div class="flex-1">
+        <h4 class="font-semibold text-red-300 mb-0.5" id="connectionAlertTitle">Network Resolution Issue</h4>
+        <p class="text-xs text-red-200/90 leading-relaxed font-mono" id="connectionAlertMessage">
+          Unable to establish network connection. Please check network connectivity or enter dispatch text directly.
+        </p>
+      </div>
+      <button onclick="dismissAlert('connectionAlert')" class="text-red-400 hover:text-white text-xs px-1">✕</button>
+    </div>
+
+    <!-- DUPLICATE COLLISION ALERT BANNER (Revealed on HTTP 409) -->
+    <div id="duplicateAlert" class="hidden p-4 rounded-lg border border-amber-500/40 bg-amber-950/30 text-amber-200 text-sm flex items-start space-x-3 transition-all">
+      <span class="text-amber-400 text-lg leading-none mt-0.5">⚠️</span>
+      <div class="flex-1">
+        <h4 class="font-semibold text-amber-300 mb-0.5">Duplicate Dispatch Detected</h4>
+        <p class="text-xs text-amber-200/90 leading-relaxed font-mono" id="duplicateAlertMessage">
+          This payload has already been indexed in the database. Duplicate submission aborted.
+        </p>
+      </div>
+      <button onclick="dismissAlert('duplicateAlert')" class="text-amber-400 hover:text-white text-xs px-1">✕</button>
+    </div>
 
     <!-- ----------------------------------------------------------------------- -->
-    <!-- PANE 1: TELEMETRY & INGEST NODE (Left: 3.5 cols)                        -->
+    <!-- 1. INPUT AREA (TOP)                                                     -->
     <!-- ----------------------------------------------------------------------- -->
-    <section class="lg:col-span-3 border-r border-tactical-border bg-tactical-panel flex flex-col overflow-y-auto">
+    <section class="bg-brand-card border border-brand-border rounded-xl p-5 sm:p-6 shadow-xl space-y-4">
       
-      <!-- Telemetry Sub-panel -->
-      <div class="p-3 border-b border-tactical-border bg-tactical-subpanel">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-white font-bold tracking-widest uppercase flex items-center">
-            <span class="inline-block w-1.5 h-1.5 bg-tactical-cyan mr-1.5"></span>
-            SYS-TELEMETRY & STATUS
+      <div class="flex items-center justify-between">
+        <label for="dispatchInput" class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+          <span>Inbound Intelligence Dispatch or URL</span>
+        </label>
+        <span class="text-[11px] text-slate-500 font-mono">TEXT OR HTTP(S) URL</span>
+      </div>
+
+      <!-- Main Input Box -->
+      <div class="relative">
+        <textarea 
+          id="dispatchInput" 
+          rows="5" 
+          placeholder="Paste raw defence intelligence, OSINT wire report, or enter an article URL (e.g. https://...)..."
+          class="w-full bg-brand-base border border-brand-border focus:border-blue-500 rounded-lg p-3.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all font-mono leading-relaxed"
+        ></textarea>
+      </div>
+
+      <!-- Quick Preset Sample Dispatches -->
+      <div class="flex flex-wrap items-center gap-2 pt-1 text-xs">
+        <span class="text-slate-500 text-[11px] font-medium mr-1">QUICK SAMPLES:</span>
+        <button type="button" onclick="loadSample('hypersonic')" class="px-2.5 py-1 rounded bg-brand-subcard border border-brand-border hover:border-brand-borderLight text-slate-300 hover:text-white text-xs transition-colors">
+          Hypersonic Countermeasure
+        </button>
+        <button type="button" onclick="loadSample('naval')" class="px-2.5 py-1 rounded bg-brand-subcard border border-brand-border hover:border-brand-borderLight text-slate-300 hover:text-white text-xs transition-colors">
+          Deep-Sea Sonar Array
+        </button>
+        <button type="button" onclick="loadSample('cyber')" class="px-2.5 py-1 rounded bg-brand-subcard border border-brand-border hover:border-brand-borderLight text-slate-300 hover:text-white text-xs transition-colors">
+          SCADA Zero-Day Exploit
+        </button>
+        <button type="button" onclick="clearInput()" class="ml-auto text-slate-500 hover:text-slate-300 text-xs">
+          Clear
+        </button>
+      </div>
+
+      <!-- Single Prominent Action Button -->
+      <div class="pt-2">
+        <button 
+          id="analyzeBtn" 
+          type="button" 
+          onclick="handleAnalyzeClick()"
+          class="w-full py-3.5 px-6 rounded-lg bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-sm tracking-wide transition-all shadow-lg shadow-blue-900/30 flex items-center justify-center space-x-2"
+        >
+          <span id="analyzeBtnSpinner" class="hidden">
+            <svg class="agent-spinner w-4 h-4 text-white" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
           </span>
-          <button onclick="fetchTelemetry()" title="Refresh telemetry" class="text-tactical-dim hover:text-tactical-emerald px-1">
-            [SYNC]
-          </button>
+          <span id="analyzeBtnText">Analyze Dispatch</span>
+          <span id="analyzeBtnIcon">→</span>
+        </button>
+      </div>
+
+    </section>
+
+    <!-- ----------------------------------------------------------------------- -->
+    <!-- 2. AGENT EXECUTION FEED (MIDDLE)                                        -->
+    <!-- ----------------------------------------------------------------------- -->
+    <section id="agentExecutionSection" class="hidden bg-brand-card border border-brand-border rounded-xl p-5 sm:p-6 shadow-xl space-y-3 transition-all">
+      <div class="flex items-center justify-between border-b border-brand-border pb-3">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300">
+            Autonomous Agent Execution Trace
+          </h3>
+        </div>
+        <span id="agentStatusBadge" class="text-[11px] font-mono text-blue-400">
+          PROCESSING...
+        </span>
+      </div>
+
+      <div class="space-y-2.5 pt-2" id="agentStepsContainer">
+        <!-- Step 1 -->
+        <div id="step-1" class="flex items-start space-x-3 p-2.5 rounded bg-brand-base border border-brand-border/60 transition-all text-xs">
+          <div id="step-1-icon" class="w-5 h-5 flex items-center justify-center text-slate-500 mt-0.5">○</div>
+          <div class="flex-1">
+            <div class="font-medium text-slate-200">1. Ingesting payload &amp; checking hash integrity...</div>
+            <div id="step-1-detail" class="text-slate-400 text-[11px] font-mono mt-0.5">Queued</div>
+          </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 text-[11px]">
-          <div class="p-2 bg-tactical-base border border-tactical-border">
-            <div class="text-tactical-dim text-[10px]">TOTAL DISPATCHES</div>
-            <div id="statTotalArticles" class="text-white text-base font-bold font-mono">--</div>
-          </div>
-          <div class="p-2 bg-tactical-base border border-tactical-border">
-            <div class="text-tactical-dim text-[10px]">FTS5 INDEX HEALTH</div>
-            <div id="statFtsStatus" class="text-tactical-emerald text-base font-bold font-mono">SYNCED</div>
-          </div>
-          <div class="p-2 bg-tactical-base border border-tactical-border">
-            <div class="text-tactical-dim text-[10px]">ACTIVE CATEGORIES</div>
-            <div id="statActiveCategories" class="text-tactical-cyan text-base font-bold font-mono">--</div>
-          </div>
-          <div class="p-2 bg-tactical-base border border-tactical-border">
-            <div class="text-tactical-dim text-[10px]">STORAGE JOURNAL</div>
-            <div id="statWalMode" class="text-tactical-amber text-base font-bold font-mono">WAL ACTIVE</div>
+        <!-- Step 2 -->
+        <div id="step-2" class="flex items-start space-x-3 p-2.5 rounded bg-brand-base border border-brand-border/60 transition-all text-xs">
+          <div id="step-2-icon" class="w-5 h-5 flex items-center justify-center text-slate-500 mt-0.5">○</div>
+          <div class="flex-1">
+            <div class="font-medium text-slate-200">2. Classifying tactical domain...</div>
+            <div id="step-2-detail" class="text-slate-400 text-[11px] font-mono mt-0.5">Queued</div>
           </div>
         </div>
 
-        <!-- Threat Matrix Breakdown -->
-        <div class="mt-2 pt-2 border-t border-tactical-border flex items-center justify-between text-[10px]">
-          <span class="text-tactical-dim">THREAT PROFILE:</span>
-          <div class="flex items-center space-x-1.5" id="threatPillsContainer">
-            <span class="px-1 bg-red-950 border border-tactical-crimson text-tactical-crimson font-bold" id="threatCritCount">CRIT: 0</span>
-            <span class="px-1 bg-amber-950 border border-tactical-amber text-tactical-amber font-bold" id="threatHighCount">HIGH: 0</span>
-            <span class="px-1 bg-slate-900 border border-tactical-border text-tactical-text font-bold" id="threatMedCount">MED: 0</span>
+        <!-- Step 3 -->
+        <div id="step-3" class="flex items-start space-x-3 p-2.5 rounded bg-brand-base border border-brand-border/60 transition-all text-xs">
+          <div id="step-3-icon" class="w-5 h-5 flex items-center justify-center text-slate-500 mt-0.5">○</div>
+          <div class="flex-1">
+            <div class="font-medium text-slate-200">3. Extracting entities, systems, and key actors...</div>
+            <div id="step-3-detail" class="text-slate-400 text-[11px] font-mono mt-0.5">Queued</div>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div id="step-4" class="flex items-start space-x-3 p-2.5 rounded bg-brand-base border border-brand-border/60 transition-all text-xs">
+          <div id="step-4-icon" class="w-5 h-5 flex items-center justify-center text-slate-500 mt-0.5">○</div>
+          <div class="flex-1">
+            <div class="font-medium text-slate-200">4. Synthesizing situation briefing...</div>
+            <div id="step-4-detail" class="text-slate-400 text-[11px] font-mono mt-0.5">Queued</div>
           </div>
         </div>
       </div>
+    </section>
 
-      <!-- SHA-256 Collision Warning Banner (Hidden by default, flashes when triggered) -->
-      <div id="collisionBanner" class="hidden p-3 border-b border-tactical-amber collision-flash text-tactical-amber text-xs">
-        <div class="font-bold flex items-center mb-1">
-          <span class="mr-1.5 text-base">⚠️</span>
-          <span>SHA-256 COLLISION DETECTED</span>
+    <!-- ----------------------------------------------------------------------- -->
+    <!-- 3. OUTPUT CARD (BOTTOM)                                                 -->
+    <!-- ----------------------------------------------------------------------- -->
+    <section id="outputCardSection" class="hidden bg-brand-card border border-brand-border rounded-xl p-5 sm:p-6 shadow-2xl space-y-5 transition-all">
+      
+      <!-- Card Header: Category & Threat Pill -->
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-brand-border pb-4">
+        <div class="flex items-center space-x-2">
+          <span id="outputCategoryBadge" class="px-3 py-1 rounded-md text-xs font-semibold uppercase tracking-wider bg-blue-950/70 border border-blue-500 text-blue-300 font-mono">
+            AEROSPACE
+          </span>
+          <span id="outputThreatPill" class="px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider bg-red-950/60 border border-red-500 text-red-300 font-mono">
+            CRITICAL
+          </span>
         </div>
-        <p class="text-[11px] leading-relaxed text-amber-200" id="collisionMessage">
-          Duplicate document submission aborted.
+        <div class="text-xs text-slate-400 font-mono flex items-center space-x-2">
+          <span id="outputIdBadge">ID: AST-8F2A</span>
+          <span>·</span>
+          <span id="outputDateBadge">2026-09-28</span>
+        </div>
+      </div>
+
+      <!-- Title / Headline -->
+      <div>
+        <h2 id="outputTitle" class="text-base sm:text-lg font-bold text-white leading-snug">
+          Hypersonic Interceptor Completes Static Seeker Test
+        </h2>
+      </div>
+
+      <!-- Key Entities & Platforms -->
+      <div class="space-y-1.5">
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          Key Entities &amp; Identified Platforms:
+        </div>
+        <div id="outputEntitiesContainer" class="flex flex-wrap gap-1.5 font-mono text-xs">
+          <!-- Injected tags -->
+        </div>
+      </div>
+
+      <!-- Executive Summary (2-3 sentences) -->
+      <div class="p-4 rounded-lg bg-brand-base border border-brand-border space-y-1.5">
+        <div class="text-[11px] font-semibold uppercase tracking-wider text-brand-emerald">
+          Executive Summary
+        </div>
+        <p id="outputSummary" class="text-sm text-slate-200 leading-relaxed font-sans">
+          The test validated gallium-nitride AESA radar acquisition under intense thermal plasma conditions. Allied analysts emphasize that the breakthrough addresses critical blind spots in stratospheric defense.
         </p>
       </div>
 
-      <!-- Ingest Success Alert Banner -->
-      <div id="ingestSuccessBanner" class="hidden p-2.5 border-b border-tactical-emerald bg-emerald-950/40 text-tactical-emerald text-xs">
-        <div class="font-bold flex items-center mb-0.5">
-          <span class="mr-1.5">✓</span>
-          <span>DISPATCH INDEXED SUCCESSFULLY</span>
+      <!-- Card Footer Actions -->
+      <div class="flex items-center justify-between pt-2 border-t border-brand-border text-xs text-slate-400">
+        <div class="font-mono text-[11px] truncate max-w-[280px]" id="outputHashBadge">
+          HASH: 9cc5f4a2...
         </div>
-        <div class="text-[10px] text-emerald-300 font-mono" id="ingestSuccessMsg">
-          Record added to SQLite FTS5 ledger.
-        </div>
-      </div>
-
-      <!-- Ingestion Drawer Form -->
-      <div class="p-3 flex-1 flex flex-col justify-between">
-        <div>
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-white font-bold tracking-widest uppercase flex items-center">
-              <span class="inline-block w-1.5 h-1.5 bg-tactical-emerald mr-1.5"></span>
-              MANUAL DISPATCH INGEST
-            </span>
-            <span class="text-[10px] text-tactical-dim font-mono">[JSON / TEXT]</span>
-          </div>
-
-          <!-- Quick Fill Sample Intel -->
-          <div class="mb-3">
-            <div class="text-[10px] text-tactical-dim mb-1 font-semibold uppercase">PRE-LOAD TACTICAL SAMPLES:</div>
-            <div class="grid grid-cols-3 gap-1">
-              <button type="button" onclick="loadSample('hypersonic')" class="px-1.5 py-1 bg-tactical-subpanel border border-tactical-border hover:border-tactical-amber text-tactical-muted hover:text-white text-[10px] tracking-tight">
-                HYPERSONIC
-              </button>
-              <button type="button" onclick="loadSample('naval')" class="px-1.5 py-1 bg-tactical-subpanel border border-tactical-border hover:border-tactical-cyan text-tactical-muted hover:text-white text-[10px] tracking-tight">
-                NAVAL SONAR
-              </button>
-              <button type="button" onclick="loadSample('cyber')" class="px-1.5 py-1 bg-tactical-subpanel border border-tactical-border hover:border-tactical-crimson text-tactical-muted hover:text-white text-[10px] tracking-tight">
-                CYBER APT
-              </button>
-            </div>
-          </div>
-
-          <form id="ingestForm" onsubmit="submitIngest(event)" class="space-y-2.5">
-            <div>
-              <label class="block text-[10px] uppercase font-bold text-tactical-dim mb-1">
-                DISPATCH HEADLINE / TITLE *
-              </label>
-              <input 
-                id="inputTitle" 
-                type="text" 
-                required 
-                placeholder="e.g. Next-Gen Airborne Radar Trials Complete..." 
-                class="w-full bg-tactical-base border border-tactical-border px-2.5 py-1.5 text-white placeholder-tactical-dim focus:border-tactical-emerald outline-none text-xs"
-              />
-            </div>
-
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-[10px] uppercase font-bold text-tactical-dim mb-1">
-                  SOURCE / FEED
-                </label>
-                <input 
-                  id="inputSource" 
-                  type="text" 
-                  placeholder="OSINT Wire" 
-                  value="OSINT Wire" 
-                  class="w-full bg-tactical-base border border-tactical-border px-2 py-1 text-white placeholder-tactical-dim focus:border-tactical-emerald outline-none text-[11px]"
-                />
-              </div>
-              <div>
-                <label class="block text-[10px] uppercase font-bold text-tactical-dim mb-1">
-                  DTG / REPORT DATE
-                </label>
-                <input 
-                  id="inputDate" 
-                  type="date" 
-                  class="w-full bg-tactical-base border border-tactical-border px-2 py-1 text-white placeholder-tactical-dim focus:border-tactical-emerald outline-none text-[11px]"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-[10px] uppercase font-bold text-tactical-dim mb-1">
-                RAW INTELLIGENCE CONTENT *
-              </label>
-              <textarea 
-                id="inputContent" 
-                rows="6" 
-                required 
-                placeholder="Enter complete technical dispatch, operational observations, platform telemetry, and source transcripts..." 
-                class="w-full bg-tactical-base border border-tactical-border p-2 text-white placeholder-tactical-dim focus:border-tactical-emerald outline-none text-xs leading-relaxed"
-              ></textarea>
-            </div>
-
-            <button 
-              id="ingestSubmitBtn" 
-              type="submit" 
-              class="w-full py-2 bg-tactical-emerald hover:bg-emerald-600 text-black font-extrabold uppercase tracking-wider transition-colors flex items-center justify-center space-x-2"
-            >
-              <span id="ingestBtnSpinner" class="hidden">⚡ TRANSMITTING...</span>
-              <span id="ingestBtnLabel">TRANSMIT & TRIAGE DISPATCH</span>
-            </button>
-          </form>
-        </div>
-
-        <div class="mt-4 pt-3 border-t border-tactical-border text-[10px] text-tactical-dim leading-normal">
-          <p><span class="text-tactical-amber font-bold">GATE PROTOCOL:</span> All payloads pass SHA-256 collision hashing before LLM classification. Duplicates return HTTP 409.</p>
+        <div class="flex items-center space-x-2">
+          <button onclick="copyExecutiveSummary()" class="px-3 py-1.5 rounded bg-brand-subcard border border-brand-border hover:border-slate-500 text-slate-200 hover:text-white text-xs font-medium transition-colors">
+            Copy Summary
+          </button>
+          <button onclick="toggleRawContent()" class="px-3 py-1.5 rounded bg-brand-subcard border border-brand-border hover:border-slate-500 text-slate-200 hover:text-white text-xs font-medium transition-colors">
+            View Wire Text
+          </button>
         </div>
       </div>
+
+      <!-- Collapsible Full Content Body -->
+      <div id="rawContentDrawer" class="hidden p-3 rounded bg-brand-base border border-brand-border text-xs font-mono text-slate-300 leading-relaxed max-h-60 overflow-y-auto whitespace-pre-wrap">
+      </div>
+
     </section>
 
     <!-- ----------------------------------------------------------------------- -->
-    <!-- PANE 2: INTELLIGENCE WIRE (Center: 5 cols)                              -->
+    <!-- 4. RECENT DISPATCHES LIST (MINIMAL LIST)                                 -->
     <!-- ----------------------------------------------------------------------- -->
-    <section class="lg:col-span-5 border-r border-tactical-border bg-tactical-base flex flex-col overflow-hidden">
+    <section class="bg-brand-card border border-brand-border rounded-xl p-5 sm:p-6 shadow-xl space-y-4">
       
-      <!-- Command Bar (FTS5 Search Console) -->
-      <div class="p-3 border-b border-tactical-border bg-tactical-panel">
-        <div class="relative">
-          <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-tactical-emerald font-bold">
-            sentinel://query &gt;
-          </div>
-          <input 
-            id="searchInput" 
-            type="text" 
-            placeholder="Search acronyms (e.g. UAV, AESA, DRDO, Mach), entities, or operators..." 
-            oninput="handleSearchInput(event)" 
-            class="w-full bg-tactical-base border border-tactical-border pl-36 pr-20 py-2 text-white placeholder-tactical-dim text-xs font-mono focus:border-tactical-emerald outline-none tracking-wide"
-          />
-          <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center">
-            <button onclick="clearSearch()" class="text-tactical-dim hover:text-tactical-amber text-[10px] tracking-tighter">
-              [CLEAR]
-            </button>
-          </div>
-        </div>
-
-        <!-- Search Timing & Query Telemetry -->
-        <div class="mt-2 flex items-center justify-between text-[11px]">
-          <div id="searchLatencyBadge" class="text-tactical-emerald font-mono font-medium">
-            INDEX READY | 0ms
-          </div>
-          <div id="searchHitsCount" class="text-tactical-muted font-mono">
-            Scanning ledger...
-          </div>
-        </div>
-
-        <!-- Category Filter Pills -->
-        <div class="mt-2.5 pt-2 border-t border-tactical-border flex flex-wrap gap-1" id="categoryFilterBar">
-          <button onclick="setCategoryFilter('ALL')" data-category="ALL" class="cat-pill active-pill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-tactical-emerald bg-emerald-950/60 text-tactical-emerald">
-            [ALL]
-          </button>
-          <button onclick="setCategoryFilter('Aerospace')" data-category="Aerospace" class="cat-pill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-tactical-border bg-tactical-subpanel text-tactical-muted hover:text-white">
-            [AEROSPACE]
-          </button>
-          <button onclick="setCategoryFilter('Naval')" data-category="Naval" class="cat-pill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-tactical-border bg-tactical-subpanel text-tactical-muted hover:text-white">
-            [NAVAL]
-          </button>
-          <button onclick="setCategoryFilter('Land Systems')" data-category="Land Systems" class="cat-pill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-tactical-border bg-tactical-subpanel text-tactical-muted hover:text-white">
-            [LAND SYSTEMS]
-          </button>
-          <button onclick="setCategoryFilter('Cybersecurity')" data-category="Cybersecurity" class="cat-pill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-tactical-border bg-tactical-subpanel text-tactical-muted hover:text-white">
-            [CYBERSECURITY]
-          </button>
-          <button onclick="setCategoryFilter('Space')" data-category="Space" class="cat-pill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-tactical-border bg-tactical-subpanel text-tactical-muted hover:text-white">
-            [SPACE]
-          </button>
-          <button onclick="setCategoryFilter('AI/Robotics')" data-category="AI/Robotics" class="cat-pill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-tactical-border bg-tactical-subpanel text-tactical-muted hover:text-white">
-            [AI/ROBOTICS]
-          </button>
-          <button onclick="setCategoryFilter('Defence Technology')" data-category="Defence Technology" class="cat-pill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-tactical-border bg-tactical-subpanel text-tactical-muted hover:text-white">
-            [DEFENCE TECH]
-          </button>
-        </div>
-      </div>
-
-      <!-- Dispatch Ledger (Scrollable Wire) -->
-      <div id="wireContainer" class="flex-1 p-3 overflow-y-auto space-y-3">
-        <!-- Rendered Dispatch Cards Injected via JS -->
-        <div class="p-8 text-center text-tactical-dim font-mono">
-          SCANNING CLASSIFIED DISPATCH LEDGER...
-        </div>
-      </div>
-    </section>
-
-    <!-- ----------------------------------------------------------------------- -->
-    <!-- PANE 3: ASTRA SITREP DOSSIER TERMINAL (Right: 3.5 cols)                  -->
-    <!-- ----------------------------------------------------------------------- -->
-    <section class="lg:col-span-4 bg-tactical-panel flex flex-col overflow-y-auto">
-      
-      <!-- SitRep Action Command Panel -->
-      <div class="p-3 border-b border-tactical-border bg-tactical-subpanel">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-white font-bold tracking-widest uppercase flex items-center">
-            <span class="inline-block w-1.5 h-1.5 bg-tactical-amber mr-1.5"></span>
-            ASTRA SITREP DOSSIER TERMINAL
-          </span>
-          <span class="text-tactical-amber text-[10px] font-bold">[OPREP-3 C2]</span>
-        </div>
-
-        <div class="space-y-2">
-          <div>
-            <label class="block text-[10px] uppercase font-bold text-tactical-dim mb-1">
-              THEATER / TOPIC INQUIRY *
-            </label>
-            <input 
-              id="sitrepTopicInput" 
-              type="text" 
-              value="Hypersonic Strike Weapons & Stratospheric Countermeasures" 
-              placeholder="e.g. Indo-Pacific Submarine Operations, Autonomous Drone Swarms..." 
-              class="w-full bg-tactical-base border border-tactical-border px-2.5 py-1.5 text-white placeholder-tactical-dim focus:border-tactical-amber outline-none text-xs"
-            />
-          </div>
-
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="block text-[10px] uppercase font-bold text-tactical-dim mb-1">
-                TAXONOMY RESTRICTION
-              </label>
-              <select id="sitrepCategorySelect" class="w-full bg-tactical-base border border-tactical-border px-2 py-1 text-white focus:border-tactical-amber outline-none text-[11px]">
-                <option value="">[ALL TAXONOMIES]</option>
-                <option value="Aerospace">Aerospace</option>
-                <option value="Naval">Naval</option>
-                <option value="Land Systems">Land Systems</option>
-                <option value="Cybersecurity">Cybersecurity</option>
-                <option value="Space">Space</option>
-                <option value="AI/Robotics">AI/Robotics</option>
-                <option value="Defence Technology">Defence Technology</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-[10px] uppercase font-bold text-tactical-dim mb-1">
-                DISPATCH HORIZON
-              </label>
-              <select id="sitrepMaxArticles" class="w-full bg-tactical-base border border-tactical-border px-2 py-1 text-white focus:border-tactical-amber outline-none text-[11px]">
-                <option value="3">Top 3 Dispatches</option>
-                <option value="5" selected>Top 5 Dispatches</option>
-                <option value="10">Top 10 Dispatches</option>
-              </select>
-            </div>
-          </div>
-
-          <button 
-            id="compileSitRepBtn" 
-            onclick="triggerSitRepCompile()" 
-            class="w-full py-2 bg-tactical-amber hover:bg-amber-600 text-black font-extrabold uppercase tracking-wider transition-colors flex items-center justify-center space-x-2 mt-1"
-          >
-            <span id="sitrepBtnSpinner" class="hidden">⚡ SYNTHESIZING DOSSIER...</span>
-            <span id="sitrepBtnLabel">COMPILE TACTICAL SITREP</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- SitRep Output Dossier Container -->
-      <div id="sitrepDisplay" class="p-3 flex-1 flex flex-col space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+          <span>Recent Indexed Dispatches</span>
+          <span id="recentCountBadge" class="px-1.5 py-0.2 rounded bg-brand-subcard border border-brand-border text-[10px] text-slate-400 font-mono">0</span>
+        </h3>
         
-        <!-- Default Placeholder State -->
-        <div id="sitrepPlaceholder" class="p-6 border border-dashed border-tactical-border text-center text-tactical-dim space-y-2 my-auto">
-          <div class="text-base text-tactical-amber">◈ AWAITING SYNTHESIS DIRECTIVE ◈</div>
-          <p class="text-[11px] leading-relaxed">
-            Select a defense intelligence theater or topic above and execute <strong class="text-white">COMPILE TACTICAL SITREP</strong> to produce an authentic military situation report grounded in verified wire dispatches.
-          </p>
-        </div>
-
-        <!-- Rendered Dossier (Populated via JS) -->
-        <div id="sitrepContent" class="hidden space-y-3">
-          <!-- Classification Banner -->
-          <div id="sitrepClassificationBanner" class="p-2 text-center font-bold tracking-widest text-xs border border-tactical-crimson bg-red-950/60 text-tactical-crimson uppercase">
-            TOP SECRET // NOFORN // ASTRA-OSINT // C2
-          </div>
-
-          <!-- SitRep Header Meta -->
-          <div class="p-2.5 bg-tactical-subpanel border border-tactical-border space-y-1">
-            <div class="flex items-center justify-between text-[10px] text-tactical-dim font-mono">
-              <span>OPREP CODE: SITREP-ASTRA-α</span>
-              <span id="sitrepDTG">DTG: --</span>
-            </div>
-            <div class="text-white font-bold text-sm tracking-wide" id="sitrepTopicHeader">
-              TOPIC: --
-            </div>
-          </div>
-
-          <!-- Executive Assessment Section -->
-          <div class="p-3 bg-tactical-base border border-tactical-border space-y-1.5">
-            <div class="text-tactical-emerald font-bold uppercase text-[10px] tracking-wider flex items-center">
-              <span class="w-1.5 h-1.5 bg-tactical-emerald mr-1.5"></span>
-              I. EXECUTIVE TACTICAL ASSESSMENT
-            </div>
-            <p id="sitrepExecutiveAssessment" class="text-tactical-text text-xs leading-relaxed font-mono">
-              --
-            </p>
-          </div>
-
-          <!-- Key Actors & Platforms -->
-          <div class="p-3 bg-tactical-base border border-tactical-border space-y-2">
-            <div class="text-tactical-cyan font-bold uppercase text-[10px] tracking-wider flex items-center">
-              <span class="w-1.5 h-1.5 bg-tactical-cyan mr-1.5"></span>
-              II. KEY ACTORS & IDENTIFIED PLATFORMS
-            </div>
-            <div id="sitrepActorsContainer" class="flex flex-wrap gap-1.5">
-              <!-- Entity pills -->
-            </div>
-          </div>
-
-          <!-- Chronological Tactical Timeline -->
-          <div class="p-3 bg-tactical-base border border-tactical-border space-y-2">
-            <div class="text-tactical-amber font-bold uppercase text-[10px] tracking-wider flex items-center justify-between">
-              <div class="flex items-center">
-                <span class="w-1.5 h-1.5 bg-tactical-amber mr-1.5"></span>
-                III. CHRONOLOGICAL TACTICAL TIMELINE
-              </div>
-              <span class="text-[9px] text-tactical-dim font-mono">DISPATCH FEED</span>
-            </div>
-            <div id="sitrepTimelineContainer" class="space-y-2 border-l border-tactical-border pl-2.5 ml-1">
-              <!-- Timeline entries -->
-            </div>
-          </div>
-
-          <!-- Grounded Source Citations -->
-          <div class="p-3 bg-tactical-base border border-tactical-border space-y-2">
-            <div class="text-tactical-emerald font-bold uppercase text-[10px] tracking-wider flex items-center">
-              <span class="w-1.5 h-1.5 bg-tactical-emerald mr-1.5"></span>
-              IV. GROUNDED SOURCE CITATIONS
-            </div>
-            <div id="sitrepCitationsContainer" class="flex flex-wrap gap-1.5">
-              <!-- Citation badges -->
-            </div>
-          </div>
-
-          <!-- Dossier Actions -->
-          <div class="pt-2 flex items-center space-x-2">
-            <button onclick="copySitrepText()" class="flex-1 py-1.5 bg-tactical-subpanel border border-tactical-border hover:border-tactical-emerald text-tactical-text hover:text-white text-[11px] font-bold tracking-wider">
-              [COPY MONO DOSSIER]
-            </button>
-            <button onclick="exportSitrepJSON()" class="flex-1 py-1.5 bg-tactical-subpanel border border-tactical-border hover:border-tactical-cyan text-tactical-text hover:text-white text-[11px] font-bold tracking-wider">
-              [EXPORT JSON DATA]
-            </button>
-          </div>
-
-        </div>
-
+        <!-- Filter Input -->
+        <input 
+          id="recentSearchInput"
+          type="text" 
+          placeholder="Filter recent dispatches..." 
+          oninput="handleRecentSearch(event)"
+          class="w-48 sm:w-64 bg-brand-base border border-brand-border focus:border-blue-500 rounded px-2.5 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none font-mono"
+        />
       </div>
+
+      <!-- Dispatches List -->
+      <div id="recentDispatchesList" class="divide-y divide-brand-border">
+        <div class="py-6 text-center text-xs text-slate-500 font-mono">
+          Loading indexed intelligence...
+        </div>
+      </div>
+
     </section>
 
   </main>
 
   <!-- ========================================================================= -->
-  <!-- MODAL: FULL DISPATCH INSPECTOR DRAWER                                     -->
-  <!-- ========================================================================= -->
-  <div id="articleModal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-    <div class="bg-tactical-panel border border-tactical-borderLight w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
-      <div class="p-3 border-b border-tactical-border bg-tactical-subpanel flex items-center justify-between">
-        <div class="flex items-center space-x-2">
-          <span class="w-2 h-2 bg-tactical-emerald"></span>
-          <span class="font-bold text-white text-xs tracking-wider" id="modalDispatchId">DISPATCH ID: --</span>
-          <span class="text-tactical-dim">|</span>
-          <span class="text-tactical-amber text-xs font-mono" id="modalCategory">--</span>
-        </div>
-        <button onclick="closeModal()" class="text-tactical-muted hover:text-tactical-crimson font-bold text-sm px-2">
-          ✕ CLOSE
-        </button>
-      </div>
-
-      <div class="p-4 overflow-y-auto space-y-3 font-mono">
-        <div class="flex items-center justify-between text-[11px] text-tactical-dim border-b border-tactical-border pb-2">
-          <div>SOURCE: <span class="text-white font-bold" id="modalSource">--</span></div>
-          <div>DATE: <span class="text-white" id="modalDate">--</span></div>
-          <div>THREAT: <span class="font-bold" id="modalThreat">--</span></div>
-        </div>
-
-        <div class="text-white font-bold text-sm leading-snug" id="modalTitle">
-          --
-        </div>
-
-        <div class="p-2.5 bg-tactical-base border border-tactical-border">
-          <div class="text-[10px] text-tactical-emerald font-bold uppercase mb-1">EXECUTIVE SUMMARY:</div>
-          <p class="text-xs text-tactical-text leading-relaxed" id="modalSummary">--</p>
-        </div>
-
-        <div>
-          <div class="text-[10px] text-tactical-dim font-bold uppercase mb-1">TACTICAL WIRE BODY:</div>
-          <p class="text-xs text-tactical-text leading-relaxed whitespace-pre-wrap p-2.5 bg-tactical-base border border-tactical-border" id="modalContent">--</p>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2 text-[10px]">
-          <div class="p-2 bg-tactical-base border border-tactical-border">
-            <span class="text-tactical-dim block uppercase font-bold mb-1">PLATFORMS & ENTITIES:</span>
-            <div id="modalEntities" class="flex flex-wrap gap-1"></div>
-          </div>
-          <div class="p-2 bg-tactical-base border border-tactical-border">
-            <span class="text-tactical-dim block uppercase font-bold mb-1">TAXONOMY KEYWORDS:</span>
-            <div id="modalKeywords" class="flex flex-wrap gap-1"></div>
-          </div>
-        </div>
-
-        <div class="p-2 bg-tactical-subpanel border border-tactical-border text-[10px] text-tactical-dim">
-          <span>SHA-256 HASH: </span>
-          <span class="font-mono text-tactical-muted" id="modalHash">--</span>
-        </div>
-      </div>
-
-      <div class="p-3 border-t border-tactical-border bg-tactical-subpanel flex justify-end">
-        <button onclick="closeModal()" class="px-4 py-1.5 bg-tactical-border text-white text-xs font-bold hover:bg-tactical-borderLight">
-          RETURN TO C2 CONSOLE
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========================================================================= -->
-  <!-- FRONTEND TACTICAL APPLICATION JAVASCRIPT                                 -->
+  <!-- JAVASCRIPT: AGENT EXECUTION CONTROLLER                                    -->
   <!-- ========================================================================= -->
   <script>
-    // Global State
-    let currentCategoryFilter = 'ALL';
-    let searchDebounceTimer = null;
-    let latestArticlesCache = [];
-    let currentSitrepObject = null;
+    // State Store
+    let allRecentArticles = [];
+    let currentActiveRecord = null;
+    let searchDebounce = null;
 
-    // Tactical Pre-loaded Dispatches for Quick Ingestion
+    // Tactical Quick Samples
     const SAMPLE_DISPATCHES = {
       hypersonic: {
-        title: "Glide-Phase Interceptor Validates GaN AESA Terminal Tracking Against Mach 7 Simulators",
-        source: "AeroDefence OSINT",
-        content: "Aerospace strike commands completed high-altitude wind tunnel and static telemetry trials of a dual-pulse solid rocket motor interceptor designed for hypersonic glide defense. The terminal seeker demonstrated lock-on capability against maneuvering vehicles in the upper stratosphere at Mach 7.4 under extreme plasma sheath conditions.",
-        date: new Date().toISOString().split('T')[0]
+        text: "Stratospheric Hypersonic Glide Countermeasure Interceptor Completes Terminal Tracking Radar Validation.\n\nThe Missile Defence Agency (MDA) and prime aerospace contractors have successfully conducted a critical altitude static burn and terminal seeker test of the Hypersonic Glide Phase Interceptor (GPI). Designed to intercept maneuvering glide vehicles traveling at velocities exceeding Mach 6 in the stratospheric envelope at altitudes of 40 to 70 kilometers, the test validated gallium-nitride (GaN) active electronically scanned array (AESA) radar acquisition under intense thermal plasma conditions. Military analysts emphasized that the breakthrough addresses severe interception blind spots between exoatmospheric ballistic shields and conventional medium-range surface-to-air missile umbrellas."
       },
       naval: {
-        title: "Autonomous Unmanned Underwater Vehicle Deploys Towed Sonar Array Along Chokepoint Traces",
-        source: "Naval Posture Wire",
-        content: "Maritime defence authorities verified endurance trials for ultra-long range autonomous underwater vehicles equipped with optical wake detection and low-frequency active sonar. The unmanned platforms completed stealth hydrophone surveys along undersea trench lines without human crew supervision.",
-        date: new Date().toISOString().split('T')[0]
+        text: "Distributed Quantum Magnetometer Sonar Arrays Deployed for Deep-Sea Submarine Acoustic Signature Profiling.\n\nNaval operational commands have begun sea trials of a seafloor-moored distributed quantum acoustic array across vital chokepoints in the Malacca and Sunda Straits. Leveraging optically pumped atomic magnetometers coupled with ultra-sensitive low-frequency acoustic hydrophones, the system can detect wake turbulence anomalies and magnetic signature fluctuations generated by nuclear-powered attack submarines operating at ultra-quiet cavitation speeds. The integrated sensor grid transmits real-time acoustic telemetry via submerged optical laser nodes to maritime patrol aircraft like the P-8I Neptune."
       },
       cyber: {
-        title: "Zero-Day Exploit Quarantined in Tactical Software-Defined Tactical Radio Firmware",
-        source: "C2 Cyber Command",
-        content: "Joint military cyber intelligence teams intercepted a remote memory-corruption exploit attempting to inject forged GPS coordinates into tactical software-defined radio transceivers. Rapid cryptographic key rollover and firmware patching mitigated telemetry spoofs across border sectors.",
-        date: new Date().toISOString().split('T')[0]
+        text: "State-Sponsored Threat Group Exploits Weaponized Firmware Zero-Day in SCADA Grid.\n\nCyber defence agencies have quarantined a sophisticated cyber espionage campaign conducted by state-sponsored threat group APT-41 targeting operational command and control (C2) tactical telemetry grids. The intrusion exploited a previously undisclosed zero-day vulnerability in embedded field-programmable gate array (FPGA) communications hardware, allowing threat actors to bridge air-gapped supervisory control and data acquisition (SCADA) systems through supply chain microcode implants. Immediate firmware sanitization and cryptographic key rotation protocols were activated."
       }
     };
 
-    // 1. Initialization on DOM Load
+    // 1. Initial Load
     document.addEventListener('DOMContentLoaded', () => {
-      startClock();
-      fetchTelemetry();
-      fetchArticles();
-      // Set today's date in input
-      document.getElementById('inputDate').value = new Date().toISOString().split('T')[0];
+      checkSystemHealth();
+      fetchRecentDispatches();
     });
 
-    // 2. Real-time UTC DTG Clock
-    function startClock() {
-      function update() {
-        const now = new Date();
-        const y = now.getUTCFullYear();
-        const m = String(now.getUTCMonth() + 1).padStart(2, '0');
-        const d = String(now.getUTCDate()).padStart(2, '0');
-        const hh = String(now.getUTCHours()).padStart(2, '0');
-        const mm = String(now.getUTCMinutes()).padStart(2, '0');
-        const ss = String(now.getUTCSeconds()).padStart(2, '0');
-        document.getElementById('liveClock').textContent = `${y}-${m}-${d} ${hh}:${mm}:${ss}Z`;
-      }
-      update();
-      setInterval(update, 1000);
-    }
-
-    // 3. Fetch System Health & Telemetry
-    async function fetchTelemetry() {
+    // 2. Health & Engine Status Check
+    async function checkSystemHealth() {
       try {
-        const [healthRes, statsRes] = await Promise.all([
-          fetch('/api/health'),
-          fetch('/api/stats')
-        ]);
-        
-        if (healthRes.ok) {
-          const health = await healthRes.json();
-          document.getElementById('headerEngineBadge').textContent = health.triage_mode.toUpperCase();
-        }
-
-        if (statsRes.ok) {
-          const stats = await statsRes.json();
-          document.getElementById('statTotalArticles').textContent = stats.total_articles;
-          document.getElementById('statActiveCategories').textContent = stats.active_categories;
-          document.getElementById('statFtsStatus').textContent = stats.fts5_active ? 'SYNCED' : 'UNINDEXED';
-          document.getElementById('statWalMode').textContent = stats.wal_mode ? 'WAL ACTIVE' : 'STANDARD';
-
-          // Threat profile breakdown
-          const crit = (stats.threat_breakdown && stats.threat_breakdown['CRITICAL']) || 0;
-          const high = (stats.threat_breakdown && stats.threat_breakdown['HIGH']) || 0;
-          const med = (stats.threat_breakdown && stats.threat_breakdown['MEDIUM']) || 0;
-          
-          document.getElementById('threatCritCount').textContent = `CRIT: ${crit}`;
-          document.getElementById('threatHighCount').textContent = `HIGH: ${high}`;
-          document.getElementById('threatMedCount').textContent = `MED: ${med}`;
+        const res = await fetch('/api/health');
+        if (res.ok) {
+          const data = await res.json();
+          const badge = document.getElementById('engineBadge');
+          if (data.triage_mode && data.triage_mode.includes('gemini')) {
+            badge.textContent = 'GEMINI 2.5 FLASH';
+            badge.className = 'px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-500 text-emerald-400 font-mono text-[11px] font-medium';
+          } else {
+            badge.textContent = 'RULE-BASED (OFFLINE)';
+            badge.className = 'px-2 py-0.5 rounded bg-blue-950/70 border border-blue-500 text-blue-400 font-mono text-[11px] font-medium';
+          }
         }
       } catch (err) {
-        console.error('Telemetry fetch error:', err);
+        console.warn('Health check failed:', err);
       }
     }
 
-    // 4. Load Articles Wire / Execute FTS5 Search
-    async function fetchArticles(query = '') {
-      const wire = document.getElementById('wireContainer');
-      const latencyBadge = document.getElementById('searchLatencyBadge');
-      const hitsCount = document.getElementById('searchHitsCount');
+    // 3. Quick Sample Loader
+    function loadSample(key) {
+      const sample = SAMPLE_DISPATCHES[key];
+      if (sample) {
+        document.getElementById('dispatchInput').value = sample.text;
+        dismissAlert('connectionAlert');
+        dismissAlert('duplicateAlert');
+      }
+    }
+
+    function clearInput() {
+      document.getElementById('dispatchInput').value = '';
+      dismissAlert('connectionAlert');
+      dismissAlert('duplicateAlert');
+    }
+
+    function dismissAlert(id) {
+      document.getElementById(id).classList.add('hidden');
+    }
+
+    // 4. Analyze Dispatch Submission
+    async function handleAnalyzeClick() {
+      const inputVal = document.getElementById('dispatchInput').value.trim();
+      if (!inputVal) {
+        alert('Please enter dispatch text or an article URL.');
+        return;
+      }
+
+      dismissAlert('connectionAlert');
+      dismissAlert('duplicateAlert');
+
+      // UI Loading State
+      setButtonLoading(true);
+      resetAgentTrace();
+      document.getElementById('agentExecutionSection').classList.remove('hidden');
+      document.getElementById('outputCardSection').classList.add('hidden');
+
+      // Start sequential visual trace
+      animateTraceStep(1, 'active', 'Analyzing input format & computing SHA-256 fingerprint...');
 
       try {
-        let url = `/api/search?q=${encodeURIComponent(query)}`;
-        if (currentCategoryFilter !== 'ALL') {
-          url += `&category=${encodeURIComponent(currentCategoryFilter)}`;
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text_or_url: inputVal })
+        });
+
+        if (response.status === 409) {
+          // Duplicate Gate Collision
+          const errData = await response.json();
+          animateTraceStep(1, 'error', 'Collision detected: Document already exists');
+          document.getElementById('agentStatusBadge').textContent = 'COLLISION REJECTED';
+          document.getElementById('agentStatusBadge').className = 'text-[11px] font-mono text-amber-400 font-semibold';
+          document.getElementById('duplicateAlertMessage').textContent = errData.detail || 'This payload is already indexed.';
+          document.getElementById('duplicateAlert').classList.remove('hidden');
+          return;
         }
 
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Search failed');
+        if (response.status === 502 || response.status === 504) {
+          // Network resolution error or connection failure
+          const errData = await response.json();
+          animateTraceStep(1, 'error', 'Network resolution failure');
+          document.getElementById('agentStatusBadge').textContent = 'CONNECTION ERROR';
+          document.getElementById('agentStatusBadge').className = 'text-[11px] font-mono text-red-400 font-semibold';
+          document.getElementById('connectionAlertMessage').textContent = errData.detail || 'Unable to establish network connection.';
+          document.getElementById('connectionAlert').classList.remove('hidden');
+          return;
+        }
 
-        const data = await res.json();
-        latestArticlesCache = data.articles;
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.detail || `Server returned error ${response.status}`);
+        }
 
-        // Update latency and hits readout
-        latencyBadge.textContent = `[${data.engine}] ${data.latency_ms}ms`;
-        hitsCount.textContent = `${data.total_hits} DISPATCH${data.total_hits === 1 ? '' : 'ES'} INDEXED`;
+        const data = await response.json();
+        currentActiveRecord = data;
 
-        renderLedger(data.articles);
+        // Step through trace
+        await advanceTraceSequentially(data);
+
+        // Render Output Card
+        renderOutputCard(data);
+
+        // Refresh Recent Dispatches List
+        fetchRecentDispatches();
+
       } catch (err) {
-        console.error('Failed to load articles:', err);
-        wire.innerHTML = `
-          <div class="p-4 border border-tactical-crimson bg-red-950/20 text-tactical-crimson text-xs font-mono">
-            [ERROR] FTS5 Search pipeline unreachable. Check backend terminal.
-          </div>
-        `;
+        console.error('Analysis failed:', err);
+        document.getElementById('agentStatusBadge').textContent = 'EXECUTION ERROR';
+        document.getElementById('agentStatusBadge').className = 'text-[11px] font-mono text-red-400 font-semibold';
+        document.getElementById('connectionAlertMessage').textContent = err.message || 'An unexpected error occurred.';
+        document.getElementById('connectionAlert').classList.remove('hidden');
+      } finally {
+        setButtonLoading(false);
       }
     }
 
-    // 5. Render Dispatch Ledger Cards
-    function renderLedger(articles) {
-      const wire = document.getElementById('wireContainer');
+    // 5. Trace Animation Sequencer
+    function resetAgentTrace() {
+      document.getElementById('agentStatusBadge').textContent = 'PROCESSING...';
+      document.getElementById('agentStatusBadge').className = 'text-[11px] font-mono text-blue-400 font-semibold';
+      for (let i = 1; i <= 4; i++) {
+        document.getElementById(`step-${i}-icon`).innerHTML = '○';
+        document.getElementById(`step-${i}-icon`).className = 'w-5 h-5 flex items-center justify-center text-slate-500 mt-0.5';
+        document.getElementById(`step-${i}-detail`).textContent = 'Queued';
+        document.getElementById(`step-${i}-detail`).className = 'text-slate-400 text-[11px] font-mono mt-0.5';
+      }
+    }
+
+    function animateTraceStep(stepNum, state, detailText) {
+      const icon = document.getElementById(`step-${stepNum}-icon`);
+      const detail = document.getElementById(`step-${stepNum}-detail`);
+
+      if (state === 'active') {
+        icon.innerHTML = '⚡';
+        icon.className = 'w-5 h-5 flex items-center justify-center text-blue-400 animate-pulse mt-0.5 font-bold';
+        detail.textContent = detailText;
+        detail.className = 'text-blue-300 text-[11px] font-mono mt-0.5';
+      } else if (state === 'completed') {
+        icon.innerHTML = '✓';
+        icon.className = 'w-5 h-5 flex items-center justify-center text-brand-emerald font-bold mt-0.5';
+        detail.textContent = detailText;
+        detail.className = 'text-slate-300 text-[11px] font-mono mt-0.5';
+      } else if (state === 'error') {
+        icon.innerHTML = '✕';
+        icon.className = 'w-5 h-5 flex items-center justify-center text-red-400 font-bold mt-0.5';
+        detail.textContent = detailText;
+        detail.className = 'text-red-400 text-[11px] font-mono mt-0.5';
+      }
+    }
+
+    async function advanceTraceSequentially(data) {
+      const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+      // Step 1: Ingesting & Hash check
+      animateTraceStep(1, 'completed', `Verified SHA-256 [${data.content_hash.substring(0, 8)}...]. Zero collisions.`);
+      await sleep(180);
+
+      // Step 2: Classifying tactical domain
+      animateTraceStep(2, 'active', 'Analyzing defence taxonomy & assessing threat impact...');
+      await sleep(220);
+      animateTraceStep(2, 'completed', `Classified as ${data.category} (Threat Impact: ${data.threat_impact})`);
+
+      // Step 3: Extracting entities
+      animateTraceStep(3, 'active', 'Isolating military platforms, actors & normalized tags...');
+      await sleep(200);
+      const entSnippet = (data.entities || []).slice(0, 3).join(', ');
+      animateTraceStep(3, 'completed', `Extracted ${data.entities.length} platforms (${entSnippet}) & ${data.keywords.length} tags`);
+
+      // Step 4: Synthesizing situation briefing
+      animateTraceStep(4, 'active', 'Synthesizing concise situation assessment...');
+      await sleep(180);
+      animateTraceStep(4, 'completed', 'Executive briefing synthesized into factual assessment');
+
+      document.getElementById('agentStatusBadge').textContent = 'COMPLETED';
+      document.getElementById('agentStatusBadge').className = 'text-[11px] font-mono text-brand-emerald font-bold';
+    }
+
+    // 6. Render Output Card
+    function renderOutputCard(data) {
+      const section = document.getElementById('outputCardSection');
+      section.classList.remove('hidden');
+
+      // Category Badge
+      const catBadge = document.getElementById('outputCategoryBadge');
+      catBadge.textContent = data.category.toUpperCase();
+
+      // Threat Pill
+      const threatPill = document.getElementById('outputThreatPill');
+      threatPill.textContent = data.threat_impact;
+      if (data.threat_impact === 'CRITICAL') {
+        threatPill.className = 'px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider bg-red-950/60 border border-red-500 text-red-300 font-mono';
+      } else if (data.threat_impact === 'HIGH') {
+        threatPill.className = 'px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider bg-amber-950/60 border border-amber-500 text-amber-300 font-mono';
+      } else if (data.threat_impact === 'MEDIUM') {
+        threatPill.className = 'px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider bg-yellow-950/50 border border-yellow-600 text-yellow-300 font-mono';
+      } else {
+        threatPill.className = 'px-2.5 py-1 rounded-md text-xs font-semibold uppercase tracking-wider bg-emerald-950/50 border border-emerald-500 text-emerald-300 font-mono';
+      }
+
+      // Meta
+      document.getElementById('outputIdBadge').textContent = `ID: ${data.id}`;
+      document.getElementById('outputDateBadge').textContent = data.date || (data.created_at ? data.created_at.substring(0, 10) : 'TODAY');
+      document.getElementById('outputTitle').textContent = data.title;
+      document.getElementById('outputSummary').textContent = data.executive_summary;
+      document.getElementById('outputHashBadge').textContent = `HASH: ${data.content_hash}`;
+
+      // Entities & Platforms
+      const entitiesContainer = document.getElementById('outputEntitiesContainer');
+      entitiesContainer.innerHTML = (data.entities || []).map(ent => `
+        <span class="px-2 py-0.5 rounded bg-brand-subcard border border-brand-border text-cyan-400 text-xs">
+          ${escapeHtml(ent)}
+        </span>
+      `).join('');
+
+      // Raw content drawer
+      document.getElementById('rawContentDrawer').textContent = data.content;
+      document.getElementById('rawContentDrawer').classList.add('hidden');
+
+      // Scroll smoothly to output card
+      section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function toggleRawContent() {
+      const drawer = document.getElementById('rawContentDrawer');
+      drawer.classList.toggle('hidden');
+    }
+
+    function copyExecutiveSummary() {
+      if (!currentActiveRecord) return;
+      const textToCopy = `[${currentActiveRecord.category} | ${currentActiveRecord.threat_impact}]\n${currentActiveRecord.title}\n\nSUMMARY:\n${currentActiveRecord.executive_summary}\n\nENTITIES: ${currentActiveRecord.entities.join(', ')}`;
+      navigator.clipboard.writeText(textToCopy);
+      alert('Executive summary copied to clipboard.');
+    }
+
+    // 7. Recent Dispatches List
+    async function fetchRecentDispatches() {
+      try {
+        const res = await fetch('/api/articles?limit=25');
+        if (res.ok) {
+          const list = await res.json();
+          allRecentArticles = list;
+          document.getElementById('recentCountBadge').textContent = list.length;
+          renderRecentList(list);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch recent dispatches:', err);
+      }
+    }
+
+    function renderRecentList(articles) {
+      const container = document.getElementById('recentDispatchesList');
       if (!articles || articles.length === 0) {
-        wire.innerHTML = `
-          <div class="p-8 text-center border border-dashed border-tactical-border text-tactical-dim font-mono">
-            NO DISPATCHES MATCHED CRITERIA [CATEGORY: ${currentCategoryFilter}]
+        container.innerHTML = `
+          <div class="py-6 text-center text-xs text-slate-500 font-mono">
+            No indexed dispatches found.
           </div>
         `;
         return;
       }
 
-      wire.innerHTML = articles.map(art => {
-        // Threat pill color styling
-        let threatColorClass = 'border-tactical-border text-tactical-text bg-tactical-subpanel';
-        if (art.threat_impact === 'CRITICAL') {
-          threatColorClass = 'border-tactical-crimson text-tactical-crimson bg-red-950/40 font-bold';
-        } else if (art.threat_impact === 'HIGH') {
-          threatColorClass = 'border-tactical-amber text-tactical-amber bg-amber-950/40 font-bold';
-        } else if (art.threat_impact === 'MEDIUM') {
-          threatColorClass = 'border-yellow-600 text-yellow-500 bg-yellow-950/20';
-        } else {
-          threatColorClass = 'border-tactical-emerald text-tactical-emerald bg-emerald-950/20';
-        }
-
-        // Entity tags
-        const entityPills = (art.entities || []).slice(0, 4).map(e => `
-          <span class="px-1.5 py-0.5 bg-tactical-subpanel border border-tactical-border text-tactical-cyan text-[10px] font-mono">
-            [${escapeHtml(e)}]
-          </span>
-        `).join('');
-
-        const keywordPills = (art.keywords || []).slice(0, 3).map(k => `
-          <span class="text-tactical-dim text-[10px]">#${escapeHtml(k)}</span>
-        `).join(' ');
+      container.innerHTML = articles.map(art => {
+        let threatColor = 'text-emerald-400 border-emerald-500/40 bg-emerald-950/20';
+        if (art.threat_impact === 'CRITICAL') threatColor = 'text-red-400 border-red-500/40 bg-red-950/20';
+        else if (art.threat_impact === 'HIGH') threatColor = 'text-amber-400 border-amber-500/40 bg-amber-950/20';
+        else if (art.threat_impact === 'MEDIUM') threatColor = 'text-yellow-400 border-yellow-500/40 bg-yellow-950/20';
 
         return `
           <div 
-            id="card-${art.id}"
-            onclick="openArticleModal('${art.id}')"
-            class="p-3 bg-tactical-panel border border-tactical-border hover:border-tactical-emerald transition-all cursor-pointer space-y-2 group"
+            onclick="loadArticleIntoView('${art.id}')"
+            class="py-3 px-2 flex items-center justify-between hover:bg-brand-subcard/50 rounded cursor-pointer transition-colors group"
           >
-            <!-- Card Meta Row -->
-            <div class="flex items-center justify-between text-[10px]">
-              <div class="flex items-center space-x-2">
-                <span class="px-1.5 py-0.5 bg-tactical-subpanel border border-tactical-borderLight text-white font-mono font-bold">
+            <div class="flex-1 min-w-0 pr-4">
+              <div class="flex items-center space-x-2 mb-1">
+                <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-brand-base border border-brand-border text-slate-400">
                   ${art.id}
                 </span>
-                <span class="px-1.5 py-0.5 bg-tactical-base border border-tactical-border text-tactical-cyan uppercase font-bold tracking-wider">
+                <span class="text-[10px] font-mono px-1.5 py-0.2 rounded border ${threatColor}">
                   ${art.category}
                 </span>
-                <span class="px-1.5 py-0.5 border ${threatColorClass} uppercase tracking-wider">
-                  ${art.threat_impact}
+                <span class="text-[11px] text-slate-500 font-mono">
+                  ${art.date || (art.created_at ? art.created_at.substring(0, 10) : '')}
                 </span>
               </div>
-              <div class="text-tactical-dim font-mono">
-                ${art.date || (art.created_at ? art.created_at.substring(0, 10) : '--')}
-              </div>
+              <h4 class="text-xs font-medium text-slate-300 group-hover:text-blue-400 transition-colors truncate">
+                ${escapeHtml(art.title)}
+              </h4>
             </div>
-
-            <!-- Title -->
-            <h3 class="text-white group-hover:text-tactical-emerald font-bold text-xs tracking-wide leading-snug transition-colors">
-              ${escapeHtml(art.title)}
-            </h3>
-
-            <!-- 2-Sentence Summary -->
-            <p class="text-tactical-text text-[11px] leading-relaxed line-clamp-2">
-              ${escapeHtml(art.executive_summary)}
-            </p>
-
-            <!-- Bottom Row: Entities, Keywords & Hash -->
-            <div class="pt-2 border-t border-tactical-border flex items-center justify-between text-[10px]">
-              <div class="flex flex-wrap items-center gap-1">
-                ${entityPills}
-              </div>
-              <div class="flex items-center space-x-2 text-tactical-dim font-mono text-[9px]">
-                <span title="${art.content_hash}">HASH: ${art.content_hash.substring(0, 8)}</span>
-              </div>
+            <div class="text-slate-500 group-hover:text-slate-300 text-xs font-mono">
+              View →
             </div>
           </div>
         `;
       }).join('');
     }
 
-    // 6. Search Input Debouncing
-    function handleSearchInput(e) {
-      const q = e.target.value;
-      clearTimeout(searchDebounceTimer);
-      searchDebounceTimer = setTimeout(() => {
-        fetchArticles(q);
+    function handleRecentSearch(e) {
+      const q = e.target.value.toLowerCase().trim();
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(async () => {
+        if (!q) {
+          renderRecentList(allRecentArticles);
+          return;
+        }
+        try {
+          const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=25`);
+          if (res.ok) {
+            const data = await res.json();
+            renderRecentList(data.articles);
+          }
+        } catch {
+          const filtered = allRecentArticles.filter(a => 
+            a.title.toLowerCase().includes(q) || 
+            a.category.toLowerCase().includes(q) ||
+            a.content.toLowerCase().includes(q)
+          );
+          renderRecentList(filtered);
+        }
       }, 150);
     }
 
-    function clearSearch() {
-      document.getElementById('searchInput').value = '';
-      fetchArticles('');
-    }
-
-    // 7. Category Filter Handling
-    function setCategoryFilter(cat) {
-      currentCategoryFilter = cat;
-      document.querySelectorAll('.cat-pill').forEach(btn => {
-        if (btn.dataset.category === cat) {
-          btn.className = 'cat-pill active-pill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-tactical-emerald bg-emerald-950/60 text-tactical-emerald';
-        } else {
-          btn.className = 'cat-pill px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border border-tactical-border bg-tactical-subpanel text-tactical-muted hover:text-white';
-        }
-      });
-      const q = document.getElementById('searchInput').value;
-      fetchArticles(q);
-    }
-
-    // 8. Manual Dispatch Ingestion & Collision Protocol
-    async function submitIngest(event) {
-      event.preventDefault();
-      
-      const title = document.getElementById('inputTitle').value.trim();
-      const content = document.getElementById('inputContent').value.trim();
-      const source = document.getElementById('inputSource').value.trim() || 'OSINT Wire';
-      const date = document.getElementById('inputDate').value || new Date().toISOString().split('T')[0];
-
-      const btnSpinner = document.getElementById('ingestBtnSpinner');
-      const btnLabel = document.getElementById('ingestBtnLabel');
-      const submitBtn = document.getElementById('ingestSubmitBtn');
-      const collisionBanner = document.getElementById('collisionBanner');
-      const successBanner = document.getElementById('ingestSuccessBanner');
-
-      // Reset banners
-      collisionBanner.classList.add('hidden');
-      successBanner.classList.add('hidden');
-
-      // Loading state
-      btnSpinner.classList.remove('hidden');
-      btnLabel.classList.add('hidden');
-      submitBtn.disabled = true;
-
-      try {
-        const response = await fetch('/api/ingest', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, content, source, date })
-        });
-
-        if (response.status === 409) {
-          // SHA-256 Collision detected!
-          const errorData = await response.json();
-          document.getElementById('collisionMessage').textContent = errorData.detail || 'Document collision detected.';
-          collisionBanner.classList.remove('hidden');
-          collisionBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          return;
-        }
-
-        if (!response.ok) {
-          const errData = await response.json();
-          alert(`[INGEST ERROR] ${errData.detail || 'Failed to ingest dispatch.'}`);
-          return;
-        }
-
-        const newRecord = await response.json();
-
-        // Show success indicator
-        document.getElementById('ingestSuccessMsg').textContent = `Record [${newRecord.id}] indexed into ${newRecord.category} (${newRecord.threat_impact}).`;
-        successBanner.classList.remove('hidden');
-
-        // Reset form
-        document.getElementById('inputTitle').value = '';
-        document.getElementById('inputContent').value = '';
-
-        // Refresh telemetry and wire
-        fetchTelemetry();
-        fetchArticles(document.getElementById('searchInput').value);
-
-      } catch (err) {
-        console.error('Ingest network error:', err);
-        alert('[ERROR] Network transmission failed.');
-      } finally {
-        btnSpinner.classList.add('hidden');
-        btnLabel.classList.remove('hidden');
-        submitBtn.disabled = false;
+    function loadArticleIntoView(id) {
+      const art = allRecentArticles.find(a => a.id === id);
+      if (art) {
+        currentActiveRecord = art;
+        renderOutputCard(art);
       }
     }
 
-    // 9. Quick Sample Dispatch Loader
-    function loadSample(key) {
-      const sample = SAMPLE_DISPATCHES[key];
-      if (!sample) return;
-      document.getElementById('inputTitle').value = sample.title;
-      document.getElementById('inputContent').value = sample.content;
-      document.getElementById('inputSource').value = sample.source;
-      document.getElementById('inputDate').value = sample.date;
+    function setButtonLoading(loading) {
+      const btn = document.getElementById('analyzeBtn');
+      const spinner = document.getElementById('analyzeBtnSpinner');
+      const text = document.getElementById('analyzeBtnText');
+      const icon = document.getElementById('analyzeBtnIcon');
 
-      // Reset banners
-      document.getElementById('collisionBanner').classList.add('hidden');
-      document.getElementById('ingestSuccessBanner').classList.add('hidden');
-    }
-
-    // 10. Compile Tactical SitRep Dossier
-    async function triggerSitRepCompile() {
-      const topic = document.getElementById('sitrepTopicInput').value.trim();
-      const category = document.getElementById('sitrepCategorySelect').value || null;
-      const maxArticles = parseInt(document.getElementById('sitrepMaxArticles').value, 10);
-
-      if (!topic) {
-        alert('Please specify an intelligence theater or topic.');
-        return;
-      }
-
-      const btnSpinner = document.getElementById('sitrepBtnSpinner');
-      const btnLabel = document.getElementById('sitrepBtnLabel');
-      const btn = document.getElementById('compileSitRepBtn');
-
-      btnSpinner.classList.remove('hidden');
-      btnLabel.classList.add('hidden');
-      btn.disabled = true;
-
-      try {
-        const response = await fetch('/api/sitrep', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ topic, category, max_articles: maxArticles })
-        });
-
-        if (!response.ok) {
-          const err = await response.json();
-          alert(`[SITREP GENERATION FAILED] ${err.detail || 'Server error.'}`);
-          return;
-        }
-
-        const data = await response.json();
-        currentSitrepObject = data;
-        renderSitRep(data);
-
-      } catch (err) {
-        console.error('SitRep error:', err);
-        alert('[ERROR] Failed to compile Situation Report.');
-      } finally {
-        btnSpinner.classList.add('hidden');
-        btnLabel.classList.remove('hidden');
+      if (loading) {
+        btn.disabled = true;
+        spinner.classList.remove('hidden');
+        text.textContent = 'Agent Executing...';
+        icon.classList.add('hidden');
+      } else {
         btn.disabled = false;
+        spinner.classList.add('hidden');
+        text.textContent = 'Analyze Dispatch';
+        icon.classList.remove('hidden');
       }
     }
 
-    // 11. Render Situation Report
-    function renderSitRep(data) {
-      document.getElementById('sitrepPlaceholder').classList.add('hidden');
-      const content = document.getElementById('sitrepContent');
-      content.classList.remove('hidden');
-
-      // Classification Banner
-      const classBanner = document.getElementById('sitrepClassificationBanner');
-      classBanner.textContent = data.classification || 'SECRET // NOFORN // ASTRA-OSINT';
-      if (data.classification.includes('TOP SECRET') || data.classification.includes('CRITICAL')) {
-        classBanner.className = 'p-2 text-center font-bold tracking-widest text-xs border border-tactical-crimson bg-red-950/60 text-tactical-crimson uppercase';
-      } else {
-        classBanner.className = 'p-2 text-center font-bold tracking-widest text-xs border border-tactical-amber bg-amber-950/60 text-tactical-amber uppercase';
-      }
-
-      // DTG & Topic
-      document.getElementById('sitrepDTG').textContent = `DTG: ${new Date().toISOString().replace('T', ' ').substring(0, 19)}Z`;
-      document.getElementById('sitrepTopicHeader').textContent = `THEATER INQUIRY: ${data.topic.toUpperCase()}`;
-
-      // Executive Assessment
-      document.getElementById('sitrepExecutiveAssessment').textContent = data.executive_assessment;
-
-      // Key Actors
-      const actorsContainer = document.getElementById('sitrepActorsContainer');
-      actorsContainer.innerHTML = (data.key_actors || []).map(act => `
-        <span class="px-2 py-0.5 bg-tactical-subpanel border border-tactical-cyan text-tactical-cyan text-[10px] font-bold font-mono">
-          ◈ ${escapeHtml(act)}
-        </span>
-      `).join('');
-
-      // Timeline
-      const timelineContainer = document.getElementById('sitrepTimelineContainer');
-      timelineContainer.innerHTML = (data.timeline || []).map(item => `
-        <div class="relative pl-3 pb-2 border-b border-tactical-border/50 last:border-b-0 space-y-1">
-          <div class="flex items-center justify-between text-[10px]">
-            <span class="text-tactical-amber font-mono font-bold">${item.timestamp || '--'}</span>
-            <span class="text-tactical-dim font-mono">${item.dispatch_id || ''}</span>
-          </div>
-          <div class="text-white font-bold text-[11px] leading-tight">${escapeHtml(item.headline || '')}</div>
-          <div class="text-tactical-text text-[10px] leading-relaxed font-mono">${escapeHtml(item.tactical_event || JSON.stringify(item))}</div>
-        </div>
-      `).join('');
-
-      // Grounded Citations
-      const citationsContainer = document.getElementById('sitrepCitationsContainer');
-      citationsContainer.innerHTML = (data.cited_article_ids || []).map(id => `
-        <button 
-          onclick="highlightAndScrollCard('${id}')" 
-          class="px-2 py-1 bg-tactical-subpanel border border-tactical-emerald hover:bg-emerald-950/50 text-tactical-emerald text-[11px] font-mono font-bold tracking-wider"
-          title="Jump to wire dispatch"
-        >
-          [REF: ${id}] ↗
-        </button>
-      `).join('');
-    }
-
-    // 12. Modal & Dispatch Inspection
-    function openArticleModal(id) {
-      const art = latestArticlesCache.find(a => a.id === id);
-      if (!art) return;
-
-      document.getElementById('modalDispatchId').textContent = `DISPATCH ID: ${art.id}`;
-      document.getElementById('modalCategory').textContent = art.category;
-      document.getElementById('modalSource').textContent = art.source || 'OSINT Wire';
-      document.getElementById('modalDate').textContent = art.date || (art.created_at ? art.created_at.substring(0, 10) : '--');
-      document.getElementById('modalThreat').textContent = art.threat_impact;
-      document.getElementById('modalTitle').textContent = art.title;
-      document.getElementById('modalSummary').textContent = art.executive_summary;
-      document.getElementById('modalContent').textContent = art.content;
-      document.getElementById('modalHash').textContent = art.content_hash;
-
-      document.getElementById('modalEntities').innerHTML = (art.entities || []).map(e => `
-        <span class="px-1.5 py-0.5 bg-tactical-panel border border-tactical-border text-tactical-cyan">[${escapeHtml(e)}]</span>
-      `).join('');
-
-      document.getElementById('modalKeywords').innerHTML = (art.keywords || []).map(k => `
-        <span class="px-1.5 py-0.5 bg-tactical-panel border border-tactical-border text-tactical-text">#${escapeHtml(k)}</span>
-      `).join('');
-
-      document.getElementById('articleModal').classList.remove('hidden');
-    }
-
-    function closeModal() {
-      document.getElementById('articleModal').classList.add('hidden');
-    }
-
-    // 13. Highlight & Scroll to Card from SitRep Citation
-    function highlightAndScrollCard(id) {
-      const card = document.getElementById(`card-${id}`);
-      if (card) {
-        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        card.classList.add('ring-2', 'ring-tactical-emerald');
-        setTimeout(() => {
-          card.classList.remove('ring-2', 'ring-tactical-emerald');
-        }, 2500);
-      } else {
-        openArticleModal(id);
-      }
-    }
-
-    // 14. Export SitRep Dossier
-    function copySitrepText() {
-      if (!currentSitrepObject) return;
-      const text = `
-================================================================================
-${currentSitrepObject.classification}
-ASTRA SENTINEL // OPERATIONAL SITUATION REPORT (SITREP)
-TOPIC: ${currentSitrepObject.topic.toUpperCase()}
-DATE: ${new Date().toISOString()}
-================================================================================
-
-I. EXECUTIVE TACTICAL ASSESSMENT
---------------------------------------------------------------------------------
-${currentSitrepObject.executive_assessment}
-
-II. IDENTIFIED PLATFORMS & KEY ACTORS
---------------------------------------------------------------------------------
-${currentSitrepObject.key_actors.join(', ')}
-
-III. TACTICAL TIMELINE
---------------------------------------------------------------------------------
-${currentSitrepObject.timeline.map(t => `[${t.timestamp || '--'}] ${t.headline || ''} - ${t.tactical_event || ''}`).join('\n')}
-
-IV. GROUNDED SOURCE CITATIONS
---------------------------------------------------------------------------------
-${currentSitrepObject.cited_article_ids.join(', ')}
-
-================================================================================
-END OF TRANSMISSION // ASTRA C2 NODE
-================================================================================
-      `.trim();
-
-      navigator.clipboard.writeText(text);
-      alert('SITREP dossier copied to clipboard in monospace military text format.');
-    }
-
-    function exportSitrepJSON() {
-      if (!currentSitrepObject) return;
-      const blob = new Blob([JSON.stringify(currentSitrepObject, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `SITREP_${Date.now()}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    // Utility: HTML escape
     function escapeHtml(str) {
       if (!str) return '';
       return String(str)
@@ -1129,5 +748,6 @@ END OF TRANSMISSION // ASTRA C2 NODE
         .replace(/'/g, '&#039;');
     }
   </script>
+
 </body>
 </html>

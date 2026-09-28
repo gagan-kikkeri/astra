@@ -21,7 +21,9 @@ from app.models import (
     SearchResponse,
     SitRepRequest,
     SitRepResponse,
-    SystemTelemetry
+    SystemTelemetry,
+    AnalyzeInput,
+    AnalyzeResponse
 )
 from app.database import (
     init_db,
@@ -30,7 +32,7 @@ from app.database import (
     get_article_by_id,
     get_database_telemetry
 )
-from app.processor import process_and_ingest_article
+from app.processor import process_and_ingest_article, analyze_and_process_dispatch
 from app.intelligence import execute_search, generate_sitrep
 
 
@@ -40,7 +42,7 @@ async def lifespan(app: FastAPI):
     Application startup and shutdown lifecycle manager.
     Initializes database tables, verifies WAL and FTS5, and bootstraps starter articles.
     """
-    logger.info("[STARTUP] Initializing ASTRA Sentinel C2 Core...")
+    logger.info("[STARTUP] Initializing ASTRA Sentinel Intelligence Core...")
     init_db()
 
     # Automatic bootstrap routine: Seed starter articles if ledger is empty
@@ -77,7 +79,6 @@ async def lifespan(app: FastAPI):
     else:
         logger.info(f"[STARTUP] Persistent database online. Found {count} indexed intelligence dispatches.")
 
-    # Telemetry report at startup
     telemetry = get_database_telemetry()
     triage_engine = f"Gemini ({settings.MODEL_NAME})" if settings.has_gemini_key else "Deterministic Rule-Based (Self-Healing)"
     logger.info(
@@ -87,17 +88,17 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    logger.info("[SHUTDOWN] ASTRA Sentinel C2 offline. Safe detachment complete.")
+    logger.info("[SHUTDOWN] ASTRA Sentinel offline. Safe detachment complete.")
 
 
 app = FastAPI(
     title="ASTRA SENTINEL",
-    description="Tactical Defence OSINT & Threat Monitoring Terminal",
-    version="1.0.0",
+    description="Autonomous Defence Intelligence Agent Interface & Threat Monitor",
+    version="2.0.0",
     lifespan=lifespan
 )
 
-# Enable CORS for local development and C2 integration
+# Enable CORS for standard environments
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -108,13 +109,13 @@ app.add_middleware(
 
 
 @app.get("/", response_class=HTMLResponse)
-async def serve_c2_workstation():
-    """Serves the authentic high-contrast tactical C2 terminal interface."""
+async def serve_agent_interface():
+    """Serves the clean, centered single-flow Autonomous Intel Agent interface."""
     template_path = Path(__file__).parent / "templates" / "index.html"
     if not template_path.exists():
         raise HTTPException(
             status_code=404,
-            detail="Tactical workstation interface template not found."
+            detail="Agent interface template not found."
         )
     return FileResponse(template_path)
 
@@ -127,22 +128,35 @@ async def health_check():
     return {
         "status": "operational",
         "system": "ASTRA SENTINEL",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "wal_mode": telemetry["wal_mode"],
         "fts5_active": telemetry["fts5_active"],
         "triage_mode": triage_mode,
+        "timeout_seconds": settings.REQUEST_TIMEOUT,
         "document_count": telemetry["total_articles"],
         "active_categories": telemetry["active_categories"]
     }
 
 
+@app.post("/api/analyze", response_model=AnalyzeResponse, status_code=status.HTTP_200_OK)
+async def analyze_dispatch(payload: AnalyzeInput):
+    """
+    Unified Single-Flow Autonomous Agent Endpoint:
+    - Accepts raw text or article URL.
+    - Resolves network content if URL is provided with standard timeouts.
+    - Runs 4-step autonomous execution trace (Hash check -> Domain -> Entities -> Briefing).
+    - Persists record into SQLite WAL + FTS5.
+    - Returns structured extraction with agent trace.
+    """
+    return analyze_and_process_dispatch(payload)
+
+
 @app.post("/api/ingest", response_model=ArticleRecord, status_code=status.HTTP_200_OK)
 async def ingest_article(payload: ArticleIngestInput):
     """
-    Ingests an inbound OSINT dispatch:
+    Standard article ingestion endpoint (Title + Content):
     - Computes deterministic SHA-256 fingerprint.
     - Rejects exact duplicate submissions with HTTP 409 Conflict.
-    - Classifies taxonomy, extracts entities, and scores threat impact via Gemini / Rule-based engine.
     - Synchronizes document into SQLite FTS5 index.
     """
     return process_and_ingest_article(payload)
@@ -155,7 +169,7 @@ async def search_wire(
     limit: int = Query(default=50, ge=1, le=100, description="Max results")
 ):
     """
-    Tactical query bar endpoint executing BM25-ranked FTS5 searches
+    Query bar endpoint executing BM25-ranked FTS5 searches
     with microsecond execution latency readout and SQL LIKE fallback.
     """
     return execute_search(query_str=q, category=category, limit=limit)

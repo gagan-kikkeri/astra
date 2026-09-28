@@ -1,6 +1,6 @@
 """
 Configuration and settings management for ASTRA Sentinel.
-Handles environment variables, default database paths, and API keys.
+Handles environment variables, network timeouts, default database paths, and API keys.
 """
 
 import os
@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     MODEL_NAME: str = "gemini-2.5-flash"
     HOST: str = "0.0.0.0"
     PORT: int = 8000
+    REQUEST_TIMEOUT: float = 15.0  # Standard network timeout in seconds
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -50,5 +51,5 @@ if not settings.has_gemini_key:
     )
 else:
     logger.info(
-        f"[ASTRA SENTINEL] Google GenAI SDK initialized with model target '{settings.MODEL_NAME}'."
+        f"[ASTRA SENTINEL] Google GenAI SDK initialized with model target '{settings.MODEL_NAME}'. Network timeout: {settings.REQUEST_TIMEOUT}s."
     )

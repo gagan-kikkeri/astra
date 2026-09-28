@@ -1,4 +1,4 @@
-# ASTRA SENTINEL — TACTICAL DEFENCE OSINT & THREAT MONITORING TERMINAL
+# ASTRA SENTINEL — AUTONOMOUS INTEL AGENT INTERFACE
 
 [![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
@@ -6,86 +6,65 @@
 [![Google GenAI](https://img.shields.io/badge/Google%20GenAI-gemini--2.5--flash-4285F4.svg)](https://ai.google.dev)
 [![Status](https://img.shields.io/badge/Status-Operational-10b981.svg)]()
 
-> **ASTRA 3-Day Build Challenge — Operational Deliverable**  
-> An authentic, production-grade Open-Source Defence Intelligence (OSINT) Terminal and Situation Report (SITREP) synthesis engine built with FastAPI, SQLite WAL/FTS5, and Google Gemini 2.5 Flash.
+> **ASTRA 3-Day Build Challenge — Autonomous Intel Agent Interface**  
+> A clean, centered, single-flow autonomous intelligence agent interface for Open-Source Defence Intelligence (OSINT) triage, domain classification, platform extraction, and situation briefing synthesis.
 
 ---
 
-## 1. Tactical Architecture
+## 1. Single-Flow Agent Architecture
 
-The following diagram illustrates the unidirectional dataflow and defensive gating implemented across ASTRA Sentinel:
+The application implements a centered single-flow agent execution pipeline:
 
 ```mermaid
 flowchart TD
-    subgraph INGESTION ["1. Ingestion Node"]
-        RAW["Raw OSINT Dispatch<br/>(Title, Content, Date, Source)"]
-        HASH_ENG["SHA-256 Fingerprint Generator<br/><code>sha256(title.lower() + '::' + content.lower())</code>"]
-        RAW --> HASH_ENG
+    subgraph INPUT ["1. Inbound Dispatch Input"]
+        RAW["Raw OSINT Payload / Article URL<br/>(Pasted Text or https://... Link)"]
     end
 
-    subgraph DEFENSIVE_GATE ["2. Duplicate Prevention Gate"]
-        DUP_CHECK{"Fingerprint Exists<br/>in Articles Ledger?"}
-        HASH_ENG --> DUP_CHECK
-        DUP_CHECK -- "Collision Detected" --> HTTP_409["Raise HTTP 409 Conflict<br/>(Flashing Amber Alert Banner)"]
-        DUP_CHECK -- "Unique Dispatch" --> TRIAGE
+    subgraph NETWORK ["2. Network & Resolution Layer"]
+        IS_URL{"Is Input a URL?"}
+        RAW --> IS_URL
+        IS_URL -- "Yes (HTTP/HTTPS)" --> FETCH["Standard HTTPX Resolution<br/>(15s Timeout, Redirect Follow)"]
+        FETCH -- "Connection/DNS Failure" --> ERR_502["Raise HTTP 502 Bad Gateway<br/>(Visible UI Connection Alert)"]
+        FETCH -- "Success" --> EXTRACT_BODY["Extract Clean HTML Text & Title"]
+        IS_URL -- "No (Raw Text)" --> EXTRACT_BODY
     end
 
-    subgraph TRIAGE ["3. Intelligence Triage & Extraction Engine"]
-        KEY_CHECK{"GEMINI_API_KEY<br/>Configured & Online?"}
-        KEY_CHECK -- "Yes (API Active)" --> GEMINI["Google Gemini 2.5 Flash<br/>(Strict Pydantic response_schema)<br/>3x Exponential Backoff Retry"]
-        KEY_CHECK -- "No (Offline / Rate Limited)" --> RULE_BASED["Self-Healing Deterministic Triage<br/>(Taxonomy & Threat Keyword Matrix)"]
-        GEMINI --> EXTRACTED["Structured Intelligence Payload<br/>• Category (7 Taxonomies)<br/>• Threat Impact (LOW/MED/HIGH/CRIT)<br/>• 2-Sentence Executive Summary<br/>• Normalized Tags & Military Entities"]
-        RULE_BASED --> EXTRACTED
+    subgraph AGENT_PIPELINE ["3. Autonomous Agent Execution Trace"]
+        EXTRACT_BODY --> STEP1["Step 1: Ingesting payload & checking hash integrity...<br/>(Deterministic SHA-256 Collision Check)"]
+        STEP1 --> STEP2["Step 2: Classifying tactical domain...<br/>(Gemini 2.5 Flash / Rule-Based Triage)"]
+        STEP2 --> STEP3["Step 3: Extracting entities, systems, and key actors...<br/>(Military Platforms, Nations, Defense Agencies)"]
+        STEP3 --> STEP4["Step 4: Synthesizing situation briefing...<br/>(Factual 2-3 sentence executive assessment)"]
     end
 
-    subgraph PERSISTENCE ["4. Persistent Storage & Search Index"]
-        SQLITE["SQLite Storage Engine<br/><code>PRAGMA journal_mode=WAL;</code><br/><code>PRAGMA synchronous=NORMAL;</code>"]
-        FTS5["SQLite FTS5 Virtual Table<br/><code>tokenize='porter unicode61'</code><br/>BM25 Ranking & SQL Triggers"]
-        EXTRACTED --> SQLITE
-        SQLITE -- "AFTER INSERT Trigger" --> FTS5
+    subgraph PERSISTENCE ["4. Persistent Storage (WAL + FTS5)"]
+        STEP4 --> DB["SQLite WAL Storage & FTS5 Indexing<br/>(Triggers synchronize for instant full-text search)"]
     end
 
-    subgraph WORKSTATION ["5. Operational C2 Terminal & Intelligence Engine"]
-        API["FastAPI REST API Core"]
-        SQLITE --> API
-        FTS5 --> API
-
-        subgraph PANE_1 ["Left Pane: Telemetry & Ingest"]
-            TEL["System Status (WAL/FTS5/Triage)<br/>Manual Dispatch Drawer<br/>SHA-256 Collision Warning Banner"]
-        end
-
-        subgraph PANE_2 ["Center Pane: Intelligence Wire"]
-            WIRE["Command Bar: <code>sentinel://query ></code><br/>FTS5 Microsecond Latency Profiler<br/>Taxonomy Filter Pills<br/>Hard-Bordered Dispatch Cards"]
-        end
-
-        subgraph PANE_3 ["Right Pane: SitRep Dossier Terminal"]
-            SITREP["SITREP Briefing Synthesizer<br/>(Grounded Citations & Timeline)<br/>Security Banner & Monospace Print"]
-        end
-
-        API --> PANE_1
-        API --> PANE_2
-        API --> PANE_3
+    subgraph OUTPUT ["5. Clean Output & Recent Ledger"]
+        DB --> CARD["Output Card:<br/>• Domain Category & Threat Pill<br/>• Key Entities & Platforms<br/>• Executive Summary"]
+        DB --> RECENT["Recent Dispatches List<br/>(Quick search & historical inspection)"]
     end
 ```
 
 ---
 
-## 2. Key Capabilities & Architectural Invariants
+## 2. Key Capabilities & Features
 
-* **Anti-Fatigue Tactical C2 Terminal Interface:**  
-  Strictly avoids generic AI SaaS styling, bubbly cards, and floating glassmorphic templates. Employs high-contrast dark mode (`#080b0f`, `#0f141c`), sharp borders, `JetBrains Mono` / `IBM Plex Mono` typography, tracked uppercase labels, and phosphor emerald/amber/crimson accents.
-* **Deterministic Deduplication (SHA-256):**  
-  Every dispatch undergoes lowercase normalized SHA-256 fingerprinting `(title + "::" + content)`. Duplicate submissions trigger an immediate `HTTP 409 Conflict` and activate an amber collision banner detailing the collided hash and existing document ID.
-* **SQLite WAL & FTS5 Synchronization:**  
-  Operates on SQLite configured with `PRAGMA journal_mode=WAL;` and `PRAGMA synchronous=NORMAL;` for high-throughput concurrent reads and writes. A virtual FTS5 table with Porter stemmer tokenization is updated via native database triggers.
-* **Hybrid Search Engine:**  
-  Supports real-time full-text search with BM25 ranking (`MATCH ? ORDER BY rank`). Automatically falls back to SQL `LIKE` wildcard search if invalid FTS syntax is provided, profiling execution latency down to milliseconds.
-* **Gemini 2.5 Flash Structured Triage:**  
-  Uses the official `google-genai` SDK with `types.GenerateContentConfig(response_schema=StructuredExtraction, response_mime_type="application/json")` and 3-attempt exponential backoff.
-* **Self-Healing Graceful Degradation:**  
-  If `GEMINI_API_KEY` is omitted, unset, or rate-limited, the system safely falls back to deterministic rule-based triage and briefing generation, logging a clear console advisory rather than crashing.
-* **Military Situation Report (SITREP / OPREP) Generator:**  
-  Synthesizes formal intelligence dossiers featuring security classification banners, executive assessments, platform actors, chronological timelines, and direct document ID citations.
+* **Centered Single-Flow Agent Interface:**  
+  Clean, modern, single-column layout with zero clutter. Features a minimal header with a pulsing status dot, an input area accepting text or URLs, an active 4-step execution trace, an elevated output card, and a recent dispatches list.
+* **Network Resolution & Graceful Error Handling:**  
+  All external network requests use standard `httpx` client configurations with standard timeouts (`REQUEST_TIMEOUT = 15.0s`). If network resolution fails (DNS errors, connection timeouts, or unresolvable domains), the UI clearly presents a connection diagnostic banner rather than silently falling back without feedback.
+* **Active 4-Step Agent Execution Trace:**  
+  Real-time feedback as the agent works through:
+  1. `Ingesting payload & checking hash integrity...`
+  2. `Classifying tactical domain...`
+  3. `Extracting entities, systems, and key actors...`
+  4. `Synthesizing situation briefing...`
+* **Deterministic SHA-256 Deduplication Gate:**  
+  Fingerprints all incoming content. Exact duplicates trigger an `HTTP 409 Conflict` and present an alert banner displaying the collided hash and record ID.
+* **Persistent SQLite with WAL & FTS5:**  
+  All dispatches are saved with Write-Ahead Logging and synchronized to a Porter-stemmed FTS5 virtual table for instant full-text and acronym searches (`UAV`, `AESA`, `DRDO`).
 
 ---
 
@@ -93,7 +72,7 @@ flowchart TD
 
 ```text
 astra-sentinel/
-├── .env.example              # Documented environment template
+├── .env.example              # Configuration template
 ├── .gitignore                # Protects secrets, databases, and caches
 ├── requirements.txt          # Python production dependencies
 ├── pytest.ini                # Pytest configuration
@@ -101,27 +80,23 @@ astra-sentinel/
 ├── README.md                 # System documentation & AI disclosure
 ├── app/
 │   ├── __init__.py           # App package identifier
-│   ├── config.py             # Settings, pydantic-settings, constants
+│   ├── config.py             # Settings, network timeouts, constants
 │   ├── database.py           # SQLite connection, WAL mode, FTS5 sync triggers
-│   ├── models.py             # Strict Pydantic schemas (IngestRequest, SitRep, etc.)
-│   ├── processor.py          # Gemini extraction pipeline + SHA-256 deduplication
+│   ├── models.py             # Pydantic schemas (AnalyzeInput, AnalyzeResponse, etc.)
+│   ├── processor.py          # URL resolution, Gemini pipeline, SHA-256 deduplication
 │   ├── intelligence.py       # FTS5 search engine & SitRep briefing synthesizer
 │   ├── main.py               # FastAPI server, REST API & static mounting
 │   └── templates/
-│       └── index.html        # Tactical OSINT C2 3-Pane Workstation (Vanilla JS + Tailwind CDN)
+│       └── index.html        # Clean, centered single-flow agent workstation
 ├── data/
 │   └── starter_articles.json # Preloaded defence intelligence dispatches
 └── tests/
-    └── test_engine.py        # Automated pytest suite (Ingest, Hash, Search, SitRep)
+    └── test_engine.py        # Automated pytest suite (9 tests covering agent & network)
 ```
 
 ---
 
 ## 4. Setup & Quick Start
-
-### Prerequisites
-* Python 3.10+ (tested on Python 3.10 - 3.14)
-* pip package manager
 
 ### Installation
 
@@ -136,37 +111,26 @@ astra-sentinel/
    pip install -r requirements.txt
    ```
 
-3. **Configure Environment Variables:**
-   Copy `.env.example` to `.env`:
+3. **Configure Environment Variables (Optional):**
    ```bash
    cp .env.example .env
    ```
-   Edit `.env` to configure your Gemini API Key (optional):
-   ```env
-   GEMINI_API_KEY=AIzaSy...your_gemini_api_key_here
-   DB_PATH=data/sentinel.db
-   MODEL_NAME=gemini-2.5-flash
-   HOST=0.0.0.0
-   PORT=8000
-   ```
-   > **Note on Offline Execution:** If `GEMINI_API_KEY` is left blank, the system automatically runs in deterministic rule-based mode, ensuring complete offline autonomy.
+   > **Note:** If `GEMINI_API_KEY` is not provided, the system operates in offline deterministic rule-based mode, ensuring complete local autonomy.
 
-4. **Run the Automated Test Suite:**
+4. **Run the Automated Test Suite (9 tests):**
    ```bash
    pytest tests/test_engine.py -v
    ```
-   *(Or `python -m pytest tests/test_engine.py -v`)*
 
-5. **Start the Operational C2 Terminal:**
+5. **Start the Operational Agent Server:**
    ```bash
    uvicorn app.main:app --host 0.0.0.0 --port 8000
    ```
-   *(Or `python -m uvicorn app.main:app --host 0.0.0.0 --port 8000`)*
 
-6. **Access the Terminal:**
+6. **Access the Agent Interface:**
    Open your browser to:
    ```text
-   http://localhost:8000
+   http://127.0.0.1:8000
    ```
 
 ---
@@ -175,82 +139,52 @@ astra-sentinel/
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/` | Serves the 3-Pane Tactical C2 Workstation UI. |
-| `GET` | `/api/health` | Verifies node health, WAL status, FTS5 health, and triage mode. |
-| `POST` | `/api/ingest` | Ingests a raw OSINT dispatch; runs SHA-256 deduplication and triage. |
-| `GET` | `/api/search` | Executes BM25-ranked FTS5 query with execution latency readout. |
-| `GET` | `/api/articles` | Lists chronologically ordered wire dispatches with category filters. |
-| `GET` | `/api/articles/{id}` | Retrieves a single dispatch by its alphanumeric identifier (`AST-XXXX`). |
+| `GET` | `/` | Serves the clean, centered single-flow agent interface. |
+| `POST` | `/api/analyze` | Unified agent endpoint: accepts text or URL, runs 4-step trace, returns output. |
+| `POST` | `/api/ingest` | Direct structured ingestion endpoint (backward compatible). |
+| `GET` | `/api/search` | Full-text FTS5 BM25 search with execution latency profiling. |
+| `GET` | `/api/articles` | Lists chronologically ordered indexed dispatches. |
+| `GET` | `/api/articles/{id}` | Retrieves a single dispatch by its identifier (`AST-XXXX`). |
 | `POST` | `/api/sitrep` | Generates a grounded military Situation Report (SITREP / OPREP). |
 | `GET` | `/api/stats` | Returns database telemetry, threat breakdown, and active categories. |
-
-### Sample Ingest Payload (`POST /api/ingest`)
-```json
-{
-  "title": "Quantum Magnetometer Submarine Sensor Validated in Deep Sea Chokepoint",
-  "content": "Naval operational units deployed a distributed quantum magnetometer array across deep sea maritime chokepoints to detect wake turbulence and magnetic anomalies from submerged nuclear submarines at ultra-quiet cavitation speeds.",
-  "source": "Naval OSINT Bureau",
-  "date": "2026-09-28"
-}
-```
-
-### Sample Duplicate Rejection Response (`HTTP 409 Conflict`)
-```json
-{
-  "detail": "DUPLICATE DETECTED: Document hash 9cc5f4a2 is already indexed under record ID AST-C8871F95"
-}
-```
-
-### Sample SitRep Synthesis Request (`POST /api/sitrep`)
-```json
-{
-  "topic": "Hypersonic Glide Weapons & Countermeasures",
-  "category": "Aerospace",
-  "max_articles": 5
-}
-```
+| `GET` | `/api/health` | Verifies node health, WAL mode, FTS5 status, and network timeouts. |
 
 ---
 
-## 6. Automated Verification Evidence
-
-The system includes a test suite covering the 5 core specifications plus system telemetry:
+## 6. Automated Test Suite Verification
 
 ```text
-tests/test_engine.py::test_ingest_unique_article PASSED          [ 16%]
-tests/test_engine.py::test_deduplication_collision PASSED        [ 33%]
-tests/test_engine.py::test_malformed_input_rejection PASSED      [ 50%]
-tests/test_engine.py::test_fts5_acronym_search PASSED            [ 66%]
-tests/test_engine.py::test_sitrep_generation PASSED              [ 83%]
-tests/test_engine.py::test_health_and_telemetry PASSED           [100%]
+tests/test_engine.py::test_ingest_unique_article PASSED          [ 11%]
+tests/test_engine.py::test_deduplication_collision PASSED        [ 22%]
+tests/test_engine.py::test_malformed_input_rejection PASSED      [ 33%]
+tests/test_engine.py::test_fts5_acronym_search PASSED            [ 44%]
+tests/test_engine.py::test_sitrep_generation PASSED              [ 55%]
+tests/test_engine.py::test_health_and_telemetry PASSED           [ 66%]
+tests/test_engine.py::test_analyze_agent_execution_flow PASSED   [ 77%]
+tests/test_engine.py::test_analyze_duplicate_collision PASSED    [ 88%]
+tests/test_engine.py::test_analyze_network_resolution_error PASSED [100%]
 
-======================== 6 passed in 0.74s ========================
+======================== 9 passed in 1.14s ========================
 ```
 
-Health verification curl:
+Health check verification:
 ```bash
 $ curl -s http://127.0.0.1:8000/api/health
-{"status":"operational","system":"ASTRA SENTINEL","version":"1.0.0","wal_mode":true,"fts5_active":true,"triage_mode":"deterministic-rule-based","document_count":6,"active_categories":5}
+{
+  "status": "operational",
+  "system": "ASTRA SENTINEL",
+  "version": "2.0.0",
+  "wal_mode": true,
+  "fts5_active": true,
+  "triage_mode": "deterministic-rule-based",
+  "timeout_seconds": 15.0,
+  "document_count": 7,
+  "active_categories": 5
+}
 ```
 
 ---
 
-## 7. ASTRA AI-Usage Disclosure
-
-In compliance with the ASTRA 3-Day Build Challenge guidelines, the following disclosure details the generative AI models and tooling utilized during design and implementation:
-
-| Domain | Disclosure / Details |
-|---|---|
-| **Primary LLM Engine** | Google Gemini `gemini-2.5-flash` via the official `google-genai` Python SDK. |
-| **Extraction Schema Enforcement** | Strict Pydantic model serialization (`response_schema=StructuredExtraction`, `response_mime_type="application/json"`). |
-| **Resilience & Fallback Protocol** | Automated 3-attempt exponential backoff; deterministic rule-based taxonomy classifier fallback ensuring zero downtime when offline. |
-| **Code Generation & Pair Programming** | Architecture, schema design, database triggers, and UI crafted using Google Antigravity Agent pairing. |
-| **Human / Autonomous Verification** | End-to-end autonomous pytest verification, live API curl verification, and zero manual code interventions required for test passage. |
-
----
-
-## 8. Security & Git Tracking Confirmation
-
-* **Zero Credentials Tracked:** Verified that `.env`, private keys, and API tokens are not tracked in git.
+## 7. Security & Privacy Posture
+* **Zero Secrets Tracked:** No `.env` files or API keys are committed to version control.
 * **Database Isolation:** SQLite storage files (`*.db`, `*.db-wal`, `*.db-shm`) are excluded via `.gitignore`.
-* **Safe Startup:** The application does not crash on missing keys or uninitialized databases; it bootstraps starter data and degrades gracefully.

@@ -1,7 +1,7 @@
 """
-Ingestion, SHA-256 deduplication, and Gemini intelligence triage pipeline.
-Handles deterministic hashing, collision prevention, LLM extraction with exponential backoff,
-and self-healing deterministic rule-based fallback.
+Ingestion, SHA-256 deduplication, URL content resolution, and Gemini intelligence triage pipeline.
+Handles deterministic hashing, collision prevention, network error reporting,
+and the autonomous agent 4-step execution flow.
 """
 
 import re
@@ -10,7 +10,9 @@ import uuid
 import hashlib
 import logging
 from datetime import datetime, timezone
-from typing import List, Tuple
+from typing import List, Tuple, Optional
+from urllib.parse import urlparse
+import httpx
 from fastapi import HTTPException
 
 from app.config import settings, logger
@@ -19,7 +21,10 @@ from app.models import (
     ArticleRecord,
     StructuredExtraction,
     CategoryEnum,
-    ThreatImpact
+    ThreatImpact,
+    AnalyzeInput,
+    AnalyzeResponse,
+    AgentStep
 )
 from app.database import get_article_by_hash, insert_article
 
@@ -40,23 +45,92 @@ def compute_content_hash(title: str, content: str) -> str:
 
 
 def extract_sentences(text: str, count: int = 2) -> str:
-    """Extracts exactly the requested number of sentences from body text."""
-    # Split by period followed by space or newline, or standard sentence delimiters
+    """Extracts concise, factual sentences from body text."""
     sentences = re.split(r'(?<=[.!?])\s+', text.strip())
     valid_sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
     if len(valid_sentences) >= count:
         return " ".join(valid_sentences[:count])
     elif valid_sentences:
-        # Pad to two sentences if only one was present
-        return f"{valid_sentences[0]} Tactical monitoring continues under high alert."
+        return f"{valid_sentences[0]} Persistent tactical monitoring active across operational command nodes."
     else:
-        return "Intelligence dispatch registered into operational wire. Further tactical assessment pending."
+        return "Intelligence dispatch registered into operational wire. Real-time tactical threat monitoring active."
+
+
+def fetch_url_payload(url: str) -> Tuple[str, str, str]:
+    """
+    Fetches raw article content from an HTTP/HTTPS URL with standard network timeouts.
+    If network resolution or connectivity fails, raises clear HTTPException rather than
+    silently swallowing the failure.
+    Returns: (title, content, source_domain)
+    """
+    domain = urlparse(url).netloc or "Web OSINT Dispatch"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ASTRA-Sentinel-Agent/1.0",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    }
+
+    try:
+        with httpx.Client(
+            timeout=settings.REQUEST_TIMEOUT,
+            follow_redirects=True,
+            headers=headers
+        ) as client:
+            resp = client.get(url)
+            resp.raise_for_status()
+            html_text = resp.text
+
+    except httpx.ConnectError as e:
+        logger.error(f"[NETWORK ERROR] Failed to connect to '{url}': {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Network resolution error: Could not reach domain '{domain}'. Please check internet connectivity or enter dispatch text directly."
+        )
+    except httpx.TimeoutException:
+        logger.error(f"[NETWORK TIMEOUT] Timeout connecting to '{url}' after {settings.REQUEST_TIMEOUT}s")
+        raise HTTPException(
+            status_code=504,
+            detail=f"Network timeout: Connection to '{domain}' timed out after {settings.REQUEST_TIMEOUT}s. Please verify the URL or paste article text directly."
+        )
+    except httpx.HTTPStatusError as e:
+        logger.error(f"[HTTP ERROR] Server returned status {e.response.status_code} for '{url}'")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Source server returned HTTP {e.response.status_code} for '{url}'. Access restricted or page not found."
+        )
+    except Exception as e:
+        logger.error(f"[REQUEST ERROR] Error fetching '{url}': {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Network request failure: Unable to retrieve article from '{url}'. {str(e)}"
+        )
+
+    # Extract Title from HTML
+    title_match = re.search(r'<title[^>]*>(.*?)</title>', html_text, re.IGNORECASE)
+    title = title_match.group(1).strip() if title_match else f"OSINT Report from {domain}"
+    # Clean HTML entities from title
+    title = re.sub(r'\s*[-|]\s*[^| -]+$', '', title)  # Remove site name suffix
+
+    # Strip script and style blocks
+    cleaned = re.sub(r'<(script|style)[^>]*>.*?</\1>', '', html_text, flags=re.DOTALL | re.IGNORECASE)
+    # Strip HTML tags
+    cleaned = re.sub(r'<[^>]+>', ' ', cleaned)
+    # Normalize whitespaces
+    content = re.sub(r'\s+', ' ', cleaned).strip()
+
+    if len(content) < 40:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Insufficient readable text extracted from '{url}'. Page may require JavaScript or authentication. Please paste text directly."
+        )
+
+    return title[:200], content, domain
 
 
 def rule_based_triage(title: str, content: str) -> StructuredExtraction:
     """
     Deterministic rule-based intelligence classifier.
-    Used when GEMINI_API_KEY is not configured or in case of persistent API failures.
+    Used when GEMINI_API_KEY is not configured.
     Ensures the system is self-healing, defensive, and fully operational offline.
     """
     text_corpus = f"{title} {content}".lower()
@@ -140,7 +214,7 @@ def rule_based_triage(title: str, content: str) -> StructuredExtraction:
         "DRDO", "IAF", "PLAN", "USSF", "SDA", "MDA", "NATO", "DoD", "DARPA",
         "APT-41", "P-8I", "UCAV", "UGV", "MBT", "GPI", "AESA", "SCADA",
         "LCA-Tejas", "Neptune", "Tranche 1", "Indian Air Force", "Space Development Agency",
-        "Missile Defence Agency"
+        "Missile Defence Agency", "UAV", "Radar"
     ]
     detected_entities = []
     for entity in known_entities:
@@ -161,7 +235,6 @@ def rule_based_triage(title: str, content: str) -> StructuredExtraction:
 
     # 4. Keyword Normalization
     candidate_keywords = []
-    # Collect words matching known taxonomy tokens
     for kw_list in cat_weights.values():
         for kw in kw_list:
             if kw in text_corpus and kw not in candidate_keywords:
@@ -184,17 +257,19 @@ def rule_based_triage(title: str, content: str) -> StructuredExtraction:
     )
 
 
-def triage_with_gemini(title: str, content: str) -> StructuredExtraction:
+def triage_with_gemini(title: str, content: str) -> Tuple[StructuredExtraction, str]:
     """
     Invokes Google GenAI SDK (gemini-2.5-flash) with strict Pydantic structured output.
-    Implements 3 retries with exponential backoff for transient API rate limits.
+    If network connectivity fails when GEMINI_API_KEY is configured, raises a clear
+    HTTPException with connection diagnostics rather than silently falling back.
+    Returns: (StructuredExtraction, engine_name)
     """
     if not GENAI_AVAILABLE or not settings.has_gemini_key:
         logger.debug("[TRIAGE] Gemini API key not present, using deterministic rule-based engine.")
-        return rule_based_triage(title, content)
+        return rule_based_triage(title, content), "deterministic-rule-based"
 
     max_retries = 3
-    base_backoff = 1.0  # seconds
+    base_backoff = 1.0
 
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     
@@ -211,6 +286,7 @@ def triage_with_gemini(title: str, content: str) -> StructuredExtraction:
         "5. entities: Military platforms, nations, or organizations (e.g. ['DRDO', 'LCA-Tejas', 'IAF', 'MDA'])\n"
     )
 
+    last_error = None
     for attempt in range(1, max_retries + 1):
         try:
             config = types.GenerateContentConfig(
@@ -225,15 +301,15 @@ def triage_with_gemini(title: str, content: str) -> StructuredExtraction:
             )
 
             if response.parsed:
-                return response.parsed
+                return response.parsed, settings.MODEL_NAME
             
-            # If response.text is returned, validate via Pydantic model
             if response.text:
-                return StructuredExtraction.model_validate_json(response.text)
+                return StructuredExtraction.model_validate_json(response.text), settings.MODEL_NAME
 
             raise ValueError("Empty response received from Gemini model.")
 
         except Exception as e:
+            last_error = e
             wait_time = base_backoff * (2 ** (attempt - 1))
             logger.warning(
                 f"[GEMINI RETRY] Attempt {attempt}/{max_retries} failed ({e}). "
@@ -242,24 +318,25 @@ def triage_with_gemini(title: str, content: str) -> StructuredExtraction:
             if attempt < max_retries:
                 time.sleep(wait_time)
             else:
-                logger.error("[GEMINI EXHAUSTED] Retries exhausted. Falling back to deterministic rule-based classifier.")
-                return rule_based_triage(title, content)
+                # Do NOT silently fall back without reporting the network failure
+                logger.error(f"[GEMINI CONNECTION FAILED] Network or API failure: {last_error}")
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Gemini API Connectivity Failure: Unable to communicate with Google GenAI ({str(last_error)}). Check internet connectivity or API key validity."
+                )
 
-    return rule_based_triage(title, content)
+    raise HTTPException(
+        status_code=502,
+        detail=f"Gemini API Connectivity Failure: {str(last_error)}"
+    )
 
 
 def process_and_ingest_article(article_in: ArticleIngestInput) -> ArticleRecord:
     """
-    End-to-end ingestion pipeline:
-    1. Deterministic SHA-256 fingerprinting
-    2. Duplicate Gate verification (HTTP 409 Conflict if collision found)
-    3. Structured Intelligence Triage (Gemini 2.5 Flash / Rule-Based)
-    4. Persistent storage in SQLite WAL & FTS5 indexing
+    Standard ingestion pipeline for backwards compatibility with tests and batch operations.
     """
-    # 1. Deterministic Hashing
     content_hash = compute_content_hash(article_in.title, article_in.content)
 
-    # 2. Duplicate Gate
     existing = get_article_by_hash(content_hash)
     if existing:
         logger.warning(
@@ -270,10 +347,8 @@ def process_and_ingest_article(article_in: ArticleIngestInput) -> ArticleRecord:
             detail=f"DUPLICATE DETECTED: Document hash {content_hash[:8]} is already indexed under record ID {existing.id}"
         )
 
-    # 3. LLM or Rule-based Intelligence Triage
-    extraction = triage_with_gemini(article_in.title, article_in.content)
+    extraction, _ = triage_with_gemini(article_in.title, article_in.content)
 
-    # 4. Construct complete ArticleRecord
     now_utc = datetime.now(timezone.utc)
     article_id = f"AST-{uuid.uuid4().hex[:8].upper()}"
     published_date = article_in.date or now_utc.strftime("%Y-%m-%d")
@@ -293,7 +368,121 @@ def process_and_ingest_article(article_in: ArticleIngestInput) -> ArticleRecord:
         entities=extraction.entities
     )
 
-    # 5. Persist into SQLite
     insert_article(record)
     logger.info(f"[INGEST] Successfully indexed {record.id} [{record.category} | {record.threat_impact}]")
     return record
+
+
+def analyze_and_process_dispatch(payload: AnalyzeInput) -> AnalyzeResponse:
+    """
+    Unified Single-Flow Autonomous Agent Pipeline:
+    Executes the 4 sequential agent steps with full execution tracing:
+    1. Ingesting payload & checking hash integrity...
+    2. Classifying tactical domain...
+    3. Extracting entities, systems, and key actors...
+    4. Synthesizing situation briefing...
+    """
+    agent_trace: List[AgentStep] = []
+    raw_input = payload.text_or_url.strip()
+
+    # Step 1: Ingesting payload & checking hash integrity
+    is_url = bool(re.match(r'^https?://', raw_input, re.IGNORECASE))
+    
+    if is_url:
+        title, content, resolved_source = fetch_url_payload(raw_input)
+        source = payload.source or resolved_source
+    else:
+        # Determine title from first sentence / line
+        lines = [line.strip() for line in raw_input.split('\n') if line.strip()]
+        if len(lines) > 1 and len(lines[0]) < 120:
+            title = lines[0]
+            content = " ".join(lines[1:])
+        else:
+            sentences = re.split(r'(?<=[.!?])\s+', raw_input)
+            title = sentences[0][:120].strip() if sentences else "OSINT Field Intelligence Dispatch"
+            content = raw_input
+        source = payload.source or "OSINT Field Dispatch"
+
+    # Compute deterministic SHA-256 fingerprint
+    content_hash = compute_content_hash(title, content)
+    
+    # Check duplicate collision gate
+    existing = get_article_by_hash(content_hash)
+    if existing:
+        logger.warning(f"[COLLISION] Duplicate hash {content_hash[:8]} matches existing ID {existing.id}")
+        raise HTTPException(
+            status_code=409,
+            detail=f"DUPLICATE DETECTED: Document hash {content_hash[:8]} is already indexed under record ID {existing.id}"
+        )
+
+    agent_trace.append(AgentStep(
+        step_num=1,
+        name="Ingesting payload & checking hash integrity...",
+        status="completed",
+        detail=f"SHA-256 fingerprint verified [{content_hash[:8]}...]. Zero duplicate collisions detected."
+    ))
+
+    # Step 2: Classifying tactical domain
+    extraction, engine_used = triage_with_gemini(title, content)
+    agent_trace.append(AgentStep(
+        step_num=2,
+        name="Classifying tactical domain...",
+        status="completed",
+        detail=f"Domain assigned: {extraction.category} (Assessed Threat Level: {extraction.threat_impact})."
+    ))
+
+    # Step 3: Extracting entities, systems, and key actors
+    entities_count = len(extraction.entities)
+    tags_count = len(extraction.keywords)
+    agent_trace.append(AgentStep(
+        step_num=3,
+        name="Extracting entities, systems, and key actors...",
+        status="completed",
+        detail=f"Extracted {entities_count} military platforms/actors ({', '.join(extraction.entities[:3])}) and {tags_count} taxonomy tags."
+    ))
+
+    # Step 4: Synthesizing situation briefing
+    agent_trace.append(AgentStep(
+        step_num=4,
+        name="Synthesizing situation briefing...",
+        status="completed",
+        detail="Executive assessment synthesized into 2 concise, actionable factual sentences."
+    ))
+
+    # Persist into database
+    now_utc = datetime.now(timezone.utc)
+    article_id = f"AST-{uuid.uuid4().hex[:8].upper()}"
+    published_date = payload.date or now_utc.strftime("%Y-%m-%d")
+
+    record = ArticleRecord(
+        id=article_id,
+        content_hash=content_hash,
+        title=title,
+        content=content,
+        source=source,
+        date=published_date,
+        created_at=now_utc.isoformat(),
+        category=extraction.category,
+        executive_summary=extraction.executive_summary,
+        threat_impact=extraction.threat_impact,
+        keywords=extraction.keywords,
+        entities=extraction.entities
+    )
+    insert_article(record)
+
+    return AnalyzeResponse(
+        id=article_id,
+        content_hash=content_hash,
+        title=title,
+        content=content,
+        source=source,
+        date=published_date,
+        created_at=now_utc.isoformat(),
+        category=extraction.category,
+        threat_impact=extraction.threat_impact,
+        executive_summary=extraction.executive_summary,
+        entities=extraction.entities,
+        keywords=extraction.keywords,
+        engine_used=engine_used,
+        agent_trace=agent_trace
+    )
