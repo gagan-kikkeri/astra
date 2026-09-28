@@ -4,6 +4,7 @@ Implements SQLite connection with Write-Ahead Logging (WAL), FTS5 synchronizatio
 dual category and date-horizon filtering, and full-text querying.
 """
 
+import re
 import json
 import sqlite3
 import logging
@@ -272,8 +273,12 @@ def search_articles_hybrid(
 
         # Attempt FTS5 query with BM25 ranking
         try:
+            tokens = [re.sub(r'[^a-zA-Z0-9_\-]', '', w) for w in clean_query.split()]
+            tokens = [t for t in tokens if len(t) > 1]
+            fts_match_expr = " OR ".join(f'"{t}"' for t in tokens) if tokens else f'"{clean_query}"'
+
             fts_conditions = ["articles_fts MATCH ?"]
-            fts_params = [clean_query]
+            fts_params = [fts_match_expr]
 
             if cat_filter:
                 fts_conditions.append("articles.category = ? COLLATE NOCASE")

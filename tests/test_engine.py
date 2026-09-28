@@ -216,3 +216,85 @@ def test_engine_status_endpoint(client: TestClient):
     assert data["online"] is True
     assert "GEMINI-2.5-FLASH" in data["model"]
     assert data["mode"] in ["CLOUD-DIRECT", "LOCAL-AGENT"]
+
+
+def test_multimodal_pdf_upload(client: TestClient):
+    """
+    Tests uploading a PDF document to /api/ingest/file:
+    extracts text, categorizes, generates hash, and saves to SQLite FTS5.
+    """
+    pdf_bytes = b"""%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj
+4 0 obj << /Length 125 >> stream
+BT
+/F1 12 Tf
+100 700 Td
+(Hypersonic Glide Phase Interceptor Radar Flight Telemetry Validated in Contested Stratosphere Envelope) Tj
+ET
+endstream
+endobj
+5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000244 00000 n 
+0000000420 00000 n 
+trailer << /Size 6 /Root 1 0 R >>
+startxref
+498
+%%EOF"""
+
+    files = {"file": ("hypersonic_briefing.pdf", pdf_bytes, "application/pdf")}
+    res = client.post("/api/ingest/file", files=files)
+    assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
+    record = res.json()
+    assert record["id"].startswith("AST-")
+    assert "[PDF DOC]" in record["source"]
+    assert "hypersonic_briefing.pdf" in record["source"]
+    assert record["category"] in ["Aerospace", "Defence Technology"]
+    assert len(record["executive_summary"]) > 10
+
+
+def test_multimodal_image_upload(client: TestClient):
+    """
+    Tests uploading a tactical sensor image to /api/ingest/file:
+    runs multimodal extraction, generates hash, and indexes into SQLite.
+    """
+    import io
+    from PIL import Image
+
+    img = Image.new("RGB", (160, 160), color=(16, 185, 129))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    img_bytes = buf.getvalue()
+
+    files = {"file": ("tactical_uav_recon.png", img_bytes, "image/png")}
+    res = client.post("/api/ingest/file", files=files)
+    assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
+    record = res.json()
+    assert record["id"].startswith("AST-")
+    assert "[IMAGE SENSOR]" in record["source"]
+    assert "tactical_uav_recon.png" in record["source"]
+    assert len(record["executive_summary"]) > 10
+    assert len(record["entities"]) >= 1
+
+
+def test_sync_live_public_osint_stream(client: TestClient):
+    """
+    Tests calling /api/ingest/sync-live-feed:
+    fetches public defence RSS feeds, deduplicates, and returns sync response.
+    """
+    res = client.post("/api/ingest/sync-live-feed?limit=3")
+    assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
+    data = res.json()
+    assert data["status"] == "success"
+    assert "ingested_count" in data
+    assert isinstance(data["ingested_count"], int)
+    assert "feed_source" in data
+    assert "message" in data
+    assert isinstance(data["articles"], list)

@@ -145,6 +145,14 @@
       <button onclick="dismissAlert('collisionToast')" class="text-amber-400 hover:text-white px-2">✕</button>
     </div>
 
+    <div id="syncToast" class="hidden p-3 rounded border border-cyan-500 bg-cyan-950/80 text-cyan-200 text-xs font-mono flex items-center justify-between shadow-xl">
+      <div class="flex items-center space-x-2">
+        <span class="text-cyan-400 font-bold">⚡</span>
+        <span id="syncToastMsg">[LIVE PUBLIC WIRE: Ingested 3 new dispatches from live public wire]</span>
+      </div>
+      <button onclick="dismissAlert('syncToast')" class="text-cyan-400 hover:text-white px-2">✕</button>
+    </div>
+
     <!-- ======================================================================= -->
     <!-- 1. DUAL CATEGORY & DATE HORIZON FILTERING RIBBON                        -->
     <!-- ======================================================================= -->
@@ -207,6 +215,22 @@
             <span class="text-[10px] text-slate-500 font-mono">SHA-256 VERIFIED</span>
           </div>
 
+          <!-- 1. LIVE PUBLIC OSINT STREAM SYNC BAR -->
+          <div class="flex items-center justify-between p-2.5 rounded-lg border border-cyan-500/40 bg-cyan-950/20 font-mono text-xs">
+            <div class="flex items-center space-x-2">
+              <span class="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></span>
+              <span class="text-cyan-300 font-bold uppercase text-[11px]">PUBLIC OSINT STREAM</span>
+            </div>
+            <button 
+              id="syncRssBtn" 
+              onclick="handleSyncLiveFeed()" 
+              class="px-2.5 py-1 bg-cyan-500 hover:bg-cyan-400 active:bg-cyan-600 text-black font-extrabold uppercase tracking-wider text-[11px] font-mono transition-all rounded flex items-center space-x-1.5 shadow-md shadow-cyan-950/50"
+            >
+              <span id="syncRssSpinner" class="hidden">⚡ SYNCING...</span>
+              <span id="syncRssLabel">[⚡ SYNC LIVE PUBLIC OSINT STREAM]</span>
+            </button>
+          </div>
+
           <!-- Input fields -->
           <div class="space-y-2.5 font-mono text-xs">
             <div>
@@ -248,6 +272,36 @@
             <span id="ingestSpinner" class="hidden">⚡ TRANSMITTING &amp; TRIAGING...</span>
             <span id="ingestLabel">INDEX DISPATCH &amp; EXTRACT METADATA</span>
           </button>
+
+          <!-- 2. MULTIMODAL DRAG & DROP FILE ZONE -->
+          <div 
+            id="dropZone" 
+            ondragover="handleDragOver(event)" 
+            ondragleave="handleDragLeave(event)" 
+            ondrop="handleFileDrop(event)"
+            onclick="document.getElementById('fileUploadInput').click()"
+            class="border border-dashed border-slate-700 hover:border-emerald-500/80 rounded-lg p-3 text-center cursor-pointer transition-all bg-brand-base/60 hover:bg-brand-subcard/40 space-y-1 group"
+          >
+            <input 
+              id="fileUploadInput" 
+              type="file" 
+              accept=".pdf,.png,.jpg,.jpeg,.webp" 
+              class="hidden" 
+              onchange="handleFileSelect(event)" 
+            />
+            <div class="flex items-center justify-center space-x-2 text-slate-400 group-hover:text-emerald-400 transition-colors font-mono text-xs">
+              <span>📄</span>
+              <span class="font-bold text-[11px]">[DROP PDF OR IMAGE FILE HERE / BROWSE]</span>
+              <span>🖼️</span>
+            </div>
+            <p id="dropZoneSubtitle" class="text-[10px] text-slate-500 font-mono">
+              Auto-extract PDF text or execute Gemini Multimodal Computer Vision on imagery
+            </p>
+            <div id="uploadProgressContainer" class="hidden text-xs font-mono text-emerald-400 pt-1 flex items-center justify-center space-x-2">
+              <span class="animate-spin">⚡</span>
+              <span id="uploadProgressText">Extracting multimodal telemetry via Gemini...</span>
+            </div>
+          </div>
         </section>
 
         <!-- DISPATCH LEDGER (Scrollable list with discrete platform & keyword chips) -->
@@ -569,6 +623,16 @@
         else if (art.threat_impact === 'HIGH') threatColor = 'text-amber-400 border-amber-500/40 bg-amber-950/20 font-bold';
         else if (art.threat_impact === 'MEDIUM') threatColor = 'text-yellow-400 border-yellow-500/40 bg-yellow-950/20';
 
+        // Multimodal / RSS Source Badge
+        let sourceTag = '';
+        if (art.source && art.source.includes('[PDF DOC]')) {
+          sourceTag = `<span class="px-1.5 py-0.2 border border-rose-500/60 bg-rose-950/30 text-rose-300 font-bold rounded text-[10px]">📄 [PDF DOC]</span>`;
+        } else if (art.source && art.source.includes('[IMAGE SENSOR]')) {
+          sourceTag = `<span class="px-1.5 py-0.2 border border-purple-500/60 bg-purple-950/30 text-purple-300 font-bold rounded text-[10px]">🖼️ [IMAGE SENSOR]</span>`;
+        } else if (art.source && art.source.includes('[LIVE RSS]')) {
+          sourceTag = `<span class="px-1.5 py-0.2 border border-cyan-500/60 bg-cyan-950/30 text-cyan-300 font-bold rounded text-[10px]">⚡ [LIVE RSS]</span>`;
+        }
+
         // Platform & Entity Chips
         const platformChips = (art.entities || []).slice(0, 4).map(e => `
           <span class="px-1.5 py-0.5 rounded bg-brand-base border border-brand-border text-cyan-400 text-[10px] font-mono">
@@ -592,6 +656,7 @@
                 <span class="px-1.5 py-0.2 bg-brand-base border border-brand-border text-slate-300 font-bold rounded">
                   ${art.id}
                 </span>
+                ${sourceTag}
                 <span class="px-1.5 py-0.2 border border-brand-border text-cyan-300 uppercase rounded text-[10px]">
                   ${art.category}
                 </span>
@@ -704,8 +769,130 @@
       document.getElementById('collisionToast').classList.remove('hidden');
     }
 
+    function showSyncToast(msg) {
+      document.getElementById('syncToastMsg').textContent = msg;
+      document.getElementById('syncToast').classList.remove('hidden');
+      setTimeout(() => dismissAlert('syncToast'), 6000);
+    }
+
     function dismissAlert(id) {
       document.getElementById(id).classList.add('hidden');
+    }
+
+    // 5b. Sync Live Public OSINT RSS Stream
+    async function handleSyncLiveFeed() {
+      const btn = document.getElementById('syncRssBtn');
+      const spinner = document.getElementById('syncRssSpinner');
+      const label = document.getElementById('syncRssLabel');
+
+      btn.disabled = true;
+      spinner.classList.remove('hidden');
+      label.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/ingest/sync-live-feed?limit=3', {
+          method: 'POST'
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          showClientError(err.detail || 'Failed to sync public feed.');
+          return;
+        }
+
+        const data = await res.json();
+        showSyncToast(`[⚡ SYNC COMPLETE: ${data.message}]`);
+        await fetchDispatches();
+
+      } catch (e) {
+        showClientError('Failed to connect to public OSINT stream.');
+      } finally {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+        label.classList.remove('hidden');
+      }
+    }
+
+    // 5c. Multimodal Drag & Drop File Upload
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const dropZone = document.getElementById('dropZone');
+      dropZone.classList.add('border-emerald-400', 'bg-emerald-950/20');
+    }
+
+    function handleDragLeave(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const dropZone = document.getElementById('dropZone');
+      dropZone.classList.remove('border-emerald-400', 'bg-emerald-950/20');
+    }
+
+    function handleFileDrop(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const dropZone = document.getElementById('dropZone');
+      dropZone.classList.remove('border-emerald-400', 'bg-emerald-950/20');
+
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        uploadMultimodalFile(e.dataTransfer.files[0]);
+      }
+    }
+
+    function handleFileSelect(e) {
+      if (e.target.files && e.target.files.length > 0) {
+        uploadMultimodalFile(e.target.files[0]);
+        e.target.value = '';
+      }
+    }
+
+    async function uploadMultimodalFile(file) {
+      if (!file) return;
+
+      dismissAlert('clientErrorToast');
+      dismissAlert('collisionToast');
+      dismissAlert('syncToast');
+
+      const progressContainer = document.getElementById('uploadProgressContainer');
+      const progressText = document.getElementById('uploadProgressText');
+      const dropSubtitle = document.getElementById('dropZoneSubtitle');
+
+      progressContainer.classList.remove('hidden');
+      dropSubtitle.classList.add('hidden');
+      progressText.textContent = `Extracting multimodal telemetry from ${file.name} via Gemini...`;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/api/ingest/file', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (res.status === 409) {
+          const err = await res.json();
+          showCollisionToast(err.detail || `[COLLISION: File ${file.name} already indexed]`);
+          return;
+        }
+
+        if (!res.ok) {
+          const err = await res.json();
+          showClientError(err.detail || `Failed to process ${file.name}`);
+          return;
+        }
+
+        const data = await res.json();
+        showSyncToast(`[FILE INDEXED: ${file.name} indexed as ${data.id}]`);
+        await fetchDispatches();
+        highlightDispatchCard(data.id);
+
+      } catch (err) {
+        showClientError(`Upload network failure: ${err.message}`);
+      } finally {
+        progressContainer.classList.add('hidden');
+        dropSubtitle.classList.remove('hidden');
+      }
     }
 
     function loadSample(key) {

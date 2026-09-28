@@ -64,6 +64,12 @@ class StructuredExtraction(BaseModel):
     )
 
 
+class ImageAnalysisExtraction(StructuredExtraction):
+    """Extraction schema for multimodal tactical image or sensor document analysis."""
+    title: str = Field(..., description="Tactical headline or dispatch title describing observed platforms or imagery")
+    content: str = Field(..., description="Factual description of the tactical elements, platforms, markings, and environment")
+
+
 class ArticleRecord(ArticleIngestInput, StructuredExtraction):
     """Complete persistent article record in database."""
     id: str = Field(..., description="Unique alphanumeric identifier (e.g., AST-8A4F12)")
@@ -181,3 +187,12 @@ class SystemTelemetry(BaseModel):
     categories_breakdown: Dict[str, int]
     threat_breakdown: Dict[str, int]
     latest_ingest_time: Optional[str] = None
+
+
+class SyncFeedResponse(BaseModel):
+    """Response payload for the public RSS feed synchronization endpoint."""
+    status: str
+    ingested_count: int
+    feed_source: str
+    message: str
+    articles: List[ArticleRecord]

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional, List
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query, status
+from fastapi import FastAPI, HTTPException, Query, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 
@@ -26,7 +26,8 @@ from app.models import (
     AnalyzeInput,
     AnalyzeResponse,
     SynthesizeRequest,
-    CrossDocumentSynthesisResponse
+    CrossDocumentSynthesisResponse,
+    SyncFeedResponse
 )
 from app.database import (
     init_db,
@@ -35,7 +36,13 @@ from app.database import (
     get_article_by_id,
     get_database_telemetry
 )
-from app.processor import process_and_ingest_article, analyze_and_process_dispatch, get_gemini_client
+from app.processor import (
+    process_and_ingest_article,
+    analyze_and_process_dispatch,
+    get_gemini_client,
+    process_file_upload,
+    sync_public_rss_stream
+)
 from app.intelligence import execute_search, generate_sitrep, synthesize_cross_intelligence
 
 
@@ -185,6 +192,39 @@ async def ingest_article(payload: ArticleIngestInput):
     - Synchronizes document into SQLite WAL + FTS5 index.
     """
     return process_and_ingest_article(payload)
+
+
+@app.post("/api/ingest/file", response_model=ArticleRecord, status_code=status.HTTP_200_OK)
+async def ingest_multimodal_file(file: UploadFile = File(...)):
+    """
+    Multimodal File Ingestion Endpoint:
+    - Accepts PDF documents and tactical images (.png, .jpg, .jpeg, .webp).
+    - If PDF: extracts text pages with pypdf and passes to intelligence triage.
+    - If Image: runs multimodal OCR/vision extraction with Gemini 2.5 Flash / sensor heuristic.
+    - Computes deterministic SHA-256 fingerprint.
+    - Rejects exact duplicate submissions with HTTP 409 Conflict.
+    - Saves record to SQLite and synchronizes with FTS5 index.
+    """
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Uploaded file '{file.filename}' is empty (0 bytes)."
+        )
+    return process_file_upload(
+        file_bytes=file_bytes,
+        filename=file.filename or "upload.bin",
+        content_type=file.content_type
+    )
+
+
+@app.post("/api/ingest/sync-live-feed", response_model=SyncFeedResponse, status_code=status.HTTP_200_OK)
+async def sync_live_feed(limit: int = Query(default=3, ge=1, le=10)):
+    """
+    Syncs live public OSINT dispatches from trusted public RSS feeds (Defense News / UK Defence Journal / USNI).
+    Extracts, deduplicates via SHA-256, triages, and indexes into Sentinel database.
+    """
+    return sync_public_rss_stream(max_entries=limit)
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse, status_code=status.HTTP_200_OK)
