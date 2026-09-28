@@ -1,0 +1,39 @@
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# SQLite Databases & WAL journal files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/sentinel.db*
+
+# Environment secrets and credentials
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Testing & Coverage reports
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
