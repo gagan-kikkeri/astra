@@ -202,3 +202,17 @@ def test_health_and_telemetry(client: TestClient):
     stats = stats_res.json()
     assert stats["total_articles"] > 0
     assert stats["active_categories"] > 0
+
+
+def test_engine_status_endpoint(client: TestClient):
+    """
+    Verifies /api/engine-status returns status ONLINE, model GEMINI-2.5-FLASH,
+    and online: True without throwing errors.
+    """
+    status_res = client.get("/api/engine-status")
+    assert status_res.status_code == 200
+    data = status_res.json()
+    assert data["status"] == "ONLINE"
+    assert data["online"] is True
+    assert "GEMINI-2.5-FLASH" in data["model"]
+    assert data["mode"] in ["CLOUD-DIRECT", "LOCAL-AGENT"]

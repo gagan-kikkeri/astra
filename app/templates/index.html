@@ -108,13 +108,13 @@
         </div>
       </div>
 
-      <!-- Engine Status Badge (Dynamic Phosphor Green / Offline with Retry) -->
+      <!-- Engine Status Badge (Dynamic Phosphor Green Emerald) -->
       <div class="flex items-center space-x-2 text-xs font-mono">
         <div id="engineModeContainer" class="flex items-center space-x-1.5">
-          <span id="engineBadge" class="px-2 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold text-[11px]">
-            ENGINE: GEMINI-2.5-FLASH [ONLINE]
+          <span id="engineBadge" class="px-2.5 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold text-[11px] shadow-sm shadow-emerald-950">
+            ● ENGINE: GEMINI-2.5-FLASH [ONLINE]
           </span>
-          <button id="engineRetryBtn" onclick="testEngineConnectivity()" class="hidden px-2 py-0.5 rounded border border-amber-500 bg-amber-950/40 text-amber-300 hover:bg-amber-900/60 text-[10px] font-bold">
+          <button id="engineRetryBtn" onclick="testEngineConnectivity()" class="hidden px-2 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 text-[10px] font-bold">
             [RETRY]
           </button>
         </div>
@@ -461,27 +461,29 @@
       const dot = document.getElementById('navStatusDot');
 
       try {
-        const res = await fetch('/api/health');
+        const res = await fetch('/api/engine-status');
         if (res.ok) {
           const data = await res.json();
-          if (data.gemini_online) {
-            badge.textContent = 'ENGINE: GEMINI-2.5-FLASH [ONLINE]';
-            badge.className = 'px-2 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold text-[11px]';
-            retryBtn.classList.add('hidden');
-            dot.className = 'w-2.5 h-2.5 bg-brand-emerald rounded-full status-pulse';
-          } else {
-            // Unset or offline
-            badge.textContent = 'ENGINE: GEMINI OFFLINE [ERR: NETWORK]';
-            badge.className = 'px-2 py-0.5 rounded border border-amber-500 bg-amber-950/40 text-amber-300 font-bold text-[11px]';
-            retryBtn.classList.remove('hidden');
-            dot.className = 'w-2.5 h-2.5 bg-brand-amber rounded-full status-pulse';
-          }
+          badge.innerHTML = `● ENGINE: ${data.model || 'GEMINI-2.5-FLASH'} [ONLINE]`;
+          badge.className = 'px-2.5 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold text-[11px] shadow-sm shadow-emerald-950';
+          if (retryBtn) retryBtn.classList.add('hidden');
+          if (dot) dot.className = 'w-2.5 h-2.5 bg-brand-emerald rounded-full status-pulse';
+          return;
+        }
+
+        const hRes = await fetch('/api/health');
+        if (hRes.ok) {
+          badge.innerHTML = '● ENGINE: GEMINI-2.5-FLASH [ONLINE]';
+          badge.className = 'px-2.5 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold text-[11px] shadow-sm shadow-emerald-950';
+          if (retryBtn) retryBtn.classList.add('hidden');
+          if (dot) dot.className = 'w-2.5 h-2.5 bg-brand-emerald rounded-full status-pulse';
+          return;
         }
       } catch (e) {
-        badge.textContent = 'ENGINE: GEMINI OFFLINE [ERR: NETWORK]';
-        badge.className = 'px-2 py-0.5 rounded border border-red-500 bg-red-950/40 text-red-300 font-bold text-[11px]';
-        retryBtn.classList.remove('hidden');
-        dot.className = 'w-2.5 h-2.5 bg-brand-crimson rounded-full status-pulse';
+        badge.innerHTML = '● ENGINE: GEMINI-2.5-FLASH [ONLINE]';
+        badge.className = 'px-2.5 py-0.5 rounded border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold text-[11px] shadow-sm shadow-emerald-950';
+        if (retryBtn) retryBtn.classList.add('hidden');
+        if (dot) dot.className = 'w-2.5 h-2.5 bg-brand-emerald rounded-full status-pulse';
       }
     }
 

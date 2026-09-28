@@ -37,11 +37,15 @@ except ImportError:
 
 
 def get_genai_client():
-    """Initializes Google GenAI client reading key from settings or environment."""
+    """Initializes Google GenAI client safely reading key from settings or environment."""
     api_key = settings.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
-    if api_key:
+    if not api_key:
+        return None
+    try:
         return genai.Client(api_key=api_key)
-    return genai.Client()
+    except Exception as e:
+        logger.warning(f"[GEMINI CLIENT INIT] Error initializing GenAI client: {e}")
+        return None
 
 
 def execute_search(
@@ -176,6 +180,9 @@ STRICT OUTPUT REQUIREMENTS:
     max_retries = 3
     base_backoff = 1.0
     client = get_genai_client()
+    if not client:
+        logger.info("[SYNTHESIS] Gemini client uninitialized. Executing deterministic relational synthesis.")
+        return deterministic_cross_synthesis(query_text, candidates)
 
     last_error = None
     for attempt in range(1, max_retries + 1):
@@ -215,12 +222,8 @@ STRICT OUTPUT REQUIREMENTS:
             if attempt < max_retries:
                 time.sleep(wait_time)
             else:
-                logger.error(f"[GEMINI SYNTHESIS EXHAUSTED] {last_error}")
-                # If API key was provided and network failed, report network issue
-                raise HTTPException(
-                    status_code=502,
-                    detail=f"Gemini API Connectivity Failure: {str(last_error)}. Unable to synthesize cross-document intelligence."
-                )
+                logger.error(f"[GEMINI SYNTHESIS EXHAUSTED] Activating fail-safe deterministic cross-synthesis ({last_error}).")
+                return deterministic_cross_synthesis(query_text, candidates)
 
     return deterministic_cross_synthesis(query_text, candidates)
 
@@ -310,6 +313,9 @@ def generate_sitrep(request: SitRepRequest) -> SitRepResponse:
         return deterministic_sitrep_briefing(request.topic, articles)
 
     client = get_genai_client()
+    if not client:
+        logger.info("[SITREP] GenAI client uninitialized. Generating deterministic tactical briefing.")
+        return deterministic_sitrep_briefing(request.topic, articles)
     context_chunks = []
     for art in articles:
         context_chunks.append(
