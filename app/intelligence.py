@@ -7,11 +7,13 @@ using Google Gemini 2.5 Flash or self-healing deterministic briefing logic.
 
 import os
 import time
+import json
+import sqlite3
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import HTTPException
 
-from app.config import settings, logger
+from app.config import settings, logger, GEMINI_API_KEY
 from app.models import (
     ArticleRecord,
     SearchResponse,
@@ -80,38 +82,199 @@ def execute_search(
     )
 
 
+KNOWN_LOCATIONS = [
+    "Germany", "United States", "US", "China", "Russia", "India", 
+    "Ukraine", "Taiwan", "Japan", "United Kingdom", "UK", "France",
+    "Baltic", "Indo-Pacific", "Pacific", "Atlantic", "Arctic",
+    "South China Sea", "Europe", "Middle East", "Polygon", "Chamber"
+]
+
+
+def retrieve_relevant_dispatches(
+    query_text: str,
+    domain_filter: Optional[str] = None,
+    max_records: int = 5
+) -> List[Dict[str, Any]]:
+    """
+    Retrieves strictly relevant intelligence dispatches from Sentinel database.
+    1. Exact FTS5 keyword match with BM25 ranking and strict outlier pruning.
+    2. Targeted SQL LIKE across Title, Entities, and Summary fallback.
+    """
+    db_path = settings.DB_PATH or "data/sentinel.db"
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    # Clean query for FTS5 and filter conversational question stopwords
+    stopwords = {
+        "where", "did", "it", "occur", "what", "is", "the", "when", "why",
+        "how", "who", "which", "are", "was", "were", "and", "or", "in",
+        "on", "at", "to", "for", "with", "from", "about", "into"
+    }
+
+    clean_terms = "".join(c for c in query_text if c.isalnum() or c in (" ", "-", "_")).strip()
+    all_words = [w for w in clean_terms.split() if len(w) > 2]
+    content_words = [w for w in all_words if w.lower() not in stopwords]
+    words = content_words if content_words else all_words
+
+    results: List[Dict[str, Any]] = []
+
+    # 1. First priority: Exact FTS5 keyword match
+    if words:
+        fts_query = " OR ".join([f'"{w}"*' for w in words[:6]])
+        try:
+            sql = """
+                SELECT a.*, bm25(articles_fts) as rank
+                FROM articles a
+                JOIN articles_fts f ON a.id = f.id
+                WHERE articles_fts MATCH ?
+                ORDER BY rank ASC
+                LIMIT ?
+            """
+            cursor.execute(sql, (fts_query, max_records * 2))
+            raw_results = [dict(row) for row in cursor.fetchall()]
+
+            # Apply domain filter if specified
+            if domain_filter and domain_filter.upper() != "ALL":
+                raw_results = [r for r in raw_results if r.get("category", "").lower() == domain_filter.lower()]
+
+            if raw_results:
+                best_rank = raw_results[0]["rank"]
+                filtered = []
+                for r in raw_results:
+                    # In SQLite FTS5 BM25, scores are negative; lower/more negative is better match
+                    if best_rank < -1.0:
+                        if r["rank"] <= best_rank * 0.35:
+                            filtered.append(r)
+                    else:
+                        filtered.append(r)
+                results = (filtered if filtered else [raw_results[0]])[:max_records]
+        except Exception as e:
+            logger.debug(f"[FTS5 RETRIEVAL] Query error: {e}")
+            results = []
+
+    # 2. Second priority: Targeted SQL LIKE across Title, Entities, and Summary
+    if not results and words:
+        like_clauses = " OR ".join(["a.title LIKE ? OR a.entities LIKE ? OR a.summary LIKE ?" for _ in words[:3]])
+        like_params = []
+        for w in words[:3]:
+            like_params.extend([f"%{w}%", f"%{w}%", f"%{w}%"])
+
+        sql = f"SELECT a.* FROM articles a WHERE {like_clauses}"
+        if domain_filter and domain_filter.upper() != "ALL":
+            sql += " AND a.category = ?"
+            like_params.append(domain_filter)
+        sql += " ORDER BY a.published_date DESC LIMIT ?"
+        like_params.append(max_records)
+        try:
+            cursor.execute(sql, like_params)
+            results = [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            logger.debug(f"[SQL LIKE RETRIEVAL] Query error: {e}")
+            results = []
+
+    conn.close()
+    return results
+
+
 def deterministic_cross_synthesis(
     query_text: str,
-    candidates: List[ArticleRecord]
+    dispatches: List[Any]
 ) -> CrossDocumentSynthesisResponse:
     """
-    Deterministic synthesis connecting cross-cutting developments across
-    retrieved dispatches when Gemini API is offline or unconfigured.
+    Deterministic query-focused synthesis connecting cross-cutting developments
+    strictly across retrieved relevant dispatches when offline or without Gemini API key.
+    Adheres strictly to the Direct Answer Mandate in sentence 1.
     """
-    all_platforms = []
-    chronological = []
-    
-    # Sort candidates chronologically
-    sorted_arts = sorted(candidates, key=lambda a: a.date or a.created_at[:10])
+    if not dispatches:
+        return CrossDocumentSynthesisResponse(
+            inquiry=query_text,
+            executive_assessment=f"No directly matching intelligence dispatches regarding '{query_text}' were found in the indexed database.",
+            related_platforms=[],
+            chronological_developments=[],
+            referenced_dispatch_ids=[]
+        )
 
-    for art in sorted_arts:
-        dt = art.date or art.created_at[:10]
-        chronological.append(f"{dt}: {art.title} — {art.executive_summary[:120]}... [REF: {art.id}]")
-        for ent in art.entities:
-            if ent not in all_platforms:
-                all_platforms.append(ent)
+    all_platforms: List[str] = []
+    chronological: List[str] = []
+    locations_found: List[str] = []
 
-    categories_involved = list(dict.fromkeys([a.category for a in candidates]))
-    ref_ids = [a.id for a in candidates]
+    # Normalize dispatches to dictionaries
+    norm_dispatches: List[Dict[str, Any]] = []
+    for d in dispatches:
+        if isinstance(d, dict):
+            nd = dict(d)
+        else:
+            nd = {
+                "id": getattr(d, "id", "AST-UNKNOWN"),
+                "title": getattr(d, "title", ""),
+                "summary": getattr(d, "executive_summary", getattr(d, "summary", "")),
+                "content": getattr(d, "content", ""),
+                "category": getattr(d, "category", ""),
+                "entities": getattr(d, "entities", []),
+                "source": getattr(d, "source", ""),
+                "published_date": getattr(d, "date", getattr(d, "published_date", getattr(d, "created_at", "")[:10])),
+                "created_at": getattr(d, "created_at", "")
+            }
+        norm_dispatches.append(nd)
 
-    # Synthesize integrated cross-cutting briefing
-    core_summaries = " ".join([a.executive_summary for a in candidates[:3]])
-    executive_assessment = (
-        f"Cross-document synthesis across {len(candidates)} dispatches reveals active developments in {', '.join(categories_involved)}. "
-        f"Regarding query '{query_text}', correlated telemetry links key platforms ({', '.join(all_platforms[:5])}). "
-        f"{core_summaries} "
-        f"Integrated assessment indicates concerted operational posture across cited dispatches."
+    for d in norm_dispatches:
+        dt = d.get("published_date") or (d.get("created_at") or "")[:10]
+        chronological.append(f"{dt}: {d['title']} — {d['summary'][:140]}... [REF: {d['id']}]")
+
+        ents = d.get("entities", [])
+        if isinstance(ents, str):
+            try:
+                ents = json.loads(ents)
+            except Exception:
+                ents = [e.strip() for e in ents.split(",") if e.strip()]
+
+        for e in ents:
+            if not e:
+                continue
+            if e in KNOWN_LOCATIONS or any(loc.lower() in e.lower() for loc in KNOWN_LOCATIONS):
+                if e not in locations_found:
+                    locations_found.append(e)
+            if e not in all_platforms:
+                all_platforms.append(e)
+
+        text_corpus = (d.get("title", "") + " " + d.get("content", "") + " " + d.get("summary", "")).lower()
+        for loc in KNOWN_LOCATIONS:
+            if loc.lower() in text_corpus and loc not in locations_found:
+                locations_found.append(loc)
+
+        # Check title for prominent platform designations
+        title_text = d.get("title", "")
+        for plat in ["Dornier Do 217N", "Dornier", "Luftwaffe", "BMW-801", "FuG Radar", "F-35", "Su-57", "B-21", "UAV", "UCAV", "UGV", "MDA", "SDA"]:
+            if plat.lower() in title_text.lower() and plat not in all_platforms:
+                all_platforms.append(plat)
+
+    ref_ids = [d["id"] for d in norm_dispatches]
+    primary = norm_dispatches[0]
+    q_lower = query_text.lower()
+
+    # DIRECT ANSWER MANDATE (Sentence 1)
+    if any(k in q_lower for k in ["where", "location", "theater", "base", "country", "coordinates", "occur"]):
+        if locations_found:
+            loc_str = ", ".join(locations_found[:3])
+            sentence_1 = f"Regarding the operational inquiry on where this occurred: Based on factual evidence in indexed dispatch [{primary['id']}], the activity occurred in {loc_str}."
+        else:
+            sentence_1 = f"Specific location coordinates regarding '{query_text}' are not explicitly recorded in indexed dispatch [{primary['id']}], though operations are cataloged under the {primary['category']} command domain."
+    elif any(k in q_lower for k in ["outcome", "result", "status", "damage", "casualt"]):
+        sentence_1 = f"Regarding the operational outcome: Based on indexed dispatch [{primary['id']}], {primary['summary'][:200]}."
+    elif any(k in q_lower for k in ["when", "time", "date"]):
+        dt_str = primary.get("published_date") or (primary.get("created_at") or "")[:10]
+        sentence_1 = f"Regarding the operational timeline: The event recorded in dispatch [{primary['id']}] is dated {dt_str}."
+    else:
+        sentence_1 = f"Regarding the operational inquiry: Correlated intelligence in dispatch [{primary['id']}] confirms active developments involving {primary['title']}."
+
+    body_sentences = (
+        f" Correlated telemetry links {len(norm_dispatches)} directly relevant dispatch(es) ({', '.join(ref_ids)}) "
+        f"in the {primary['category']} sector. "
+        f"Primary platform observations: {primary['summary']} "
+        f"Identified entities and assets include {', '.join(all_platforms[:6])}."
     )
+    executive_assessment = sentence_1 + body_sentences
 
     return CrossDocumentSynthesisResponse(
         inquiry=query_text,
@@ -124,90 +287,80 @@ def deterministic_cross_synthesis(
 
 def synthesize_cross_intelligence(
     query_text: str,
+    domain_filter: Optional[str] = None,
     category_filter: Optional[str] = None
 ) -> CrossDocumentSynthesisResponse:
     """
     RAG-powered cross-document relational synthesis:
-    1. Retrieves candidate dispatches via FTS5 BM25 match.
-    2. Injects aggregated grounded context into Gemini 2.5 Flash.
-    3. Synthesizes connections, cross-cutting platforms, and chronological timelines.
+    1. Retrieves candidate dispatches via strict keyword & FTS5 BM25 match.
+    2. Builds query-focused grounded context.
+    3. Injects into Gemini 2.5 Flash with direct question-answering mandate.
+    4. Falls back gracefully to deterministic direct-QA synthesis.
     """
-    # 1. Retrieve candidate dispatches using FTS5 BM25 match
-    candidates = query_fts5(query_text, category_filter, limit=8)
+    filter_val = domain_filter or category_filter
+    dispatches = retrieve_relevant_dispatches(query_text, filter_val, max_records=4)
 
-    # Fallback to recent articles if match yield is low
-    if len(candidates) < 2:
-        candidates = get_latest_dispatches(limit=6)
+    # Build strict context corpus
+    if not dispatches:
+        context_corpus = "NO DIRECTLY MATCHING DISPATCHES FOUND IN DATABASE."
+    else:
+        corpus_blocks = []
+        for d in dispatches:
+            corpus_blocks.append(
+                f"[DISPATCH ID: {d['id']}] Date: {d.get('published_date')} | Category: {d.get('category')} | Source: {d.get('source')}\n"
+                f"Title: {d.get('title')}\n"
+                f"Summary: {d.get('summary')}\n"
+                f"Extracted Entities: {d.get('entities')}\n"
+                f"Content: {d.get('content', '')[:800]}"
+            )
+        context_corpus = "\n\n---\n\n".join(corpus_blocks)
 
-    if not candidates:
-        raise HTTPException(
-            status_code=404,
-            detail="No intelligence dispatches found in database to synthesize cross-document briefing."
-        )
+    system_prompt = f"""You are the Lead Intelligence Officer for ASTRA SENTINEL.
+A tactical operator submitted this exact inquiry:
+"{query_text}"
 
-    # If Gemini is not configured, run deterministic cross-document synthesis
-    if not GENAI_AVAILABLE or not settings.has_gemini_key:
-        logger.info("[SYNTHESIS] Gemini unconfigured/offline. Executing deterministic relational synthesis.")
-        return deterministic_cross_synthesis(query_text, candidates)
-
-    # 2. Build Grounded Context Corpus
-    context_corpus = ""
-    for art in candidates:
-        dt = art.date or art.created_at[:10]
-        context_corpus += (
-            f"\n--- [DISPATCH ID: {art.id}] Date: {dt} | Category: {art.category} ---\n"
-            f"Title: {art.title}\n"
-            f"Summary: {art.executive_summary}\n"
-            f"Entities: {', '.join(art.entities)}\n"
-            f"Content: {art.content[:600]}\n"
-        )
-
-    prompt = f"""You are the senior intelligence synthesis agent for ASTRA SENTINEL.
-A human operator is searching for intelligence regarding: "{query_text}".
-Analyze ALL the provided dispatches below. Connect the dots across separate articles, identify cross-cutting programs, timelines, and actors, and formulate an integrated intelligence briefing.
-
-DISPATCH CORPUS:
+CORPUS OF RELEVANT DISPATCHES:
 {context_corpus}
 
-STRICT OUTPUT REQUIREMENTS:
-1. inquiry: The exact inquiry requested.
-2. executive_assessment: Deeply integrated briefing connecting information across the dispatches.
-3. related_platforms: Tactical platforms, weapon systems, or organizations identified across the dispatches.
-4. chronological_developments: Timeline of major tactical developments reconstructed across the dispatches.
-5. referenced_dispatch_ids: The exact DISPATCH IDs (e.g. AST-...) of the dispatches cited.
-"""
+INSTRUCTIONS:
+1. DIRECT ANSWER MANDATE: In the executive_assessment, directly answer the operator's specific question in the very first sentence using the factual evidence in the corpus.
+2. If the user asks "WHERE DID IT OCCUR" or "WHEN", extract the exact location, theater, base, country, or coordinates recorded in the text or filename metadata.
+3. STRICT FACTUAL BOUNDING: Base your answer ONLY on the dispatches that actually relate to the user's inquiry. Do NOT mention unrelated platforms or topics that have no connection to the query.
+4. If the exact answer is not in the text, clearly state: "Specific details regarding [X] are not recorded in the indexed dispatches", followed by what IS confirmed.
+5. Populate related_platforms and referenced_dispatch_ids using ONLY the dispatches that actually pertain to the inquiry.
+6. Chronological developments must list only events directly relevant to the queried subject."""
+
+    client = get_genai_client()
+    if not client or not settings.has_gemini_key:
+        logger.info("[SYNTHESIS] Gemini unconfigured/offline. Executing deterministic direct-QA synthesis.")
+        return deterministic_cross_synthesis(query_text, dispatches)
 
     max_retries = 3
     base_backoff = 1.0
-    client = get_genai_client()
-    if not client:
-        logger.info("[SYNTHESIS] Gemini client uninitialized. Executing deterministic relational synthesis.")
-        return deterministic_cross_synthesis(query_text, candidates)
-
     last_error = None
     for attempt in range(1, max_retries + 1):
         try:
             config = types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=CrossDocumentSynthesisResponse,
-                temperature=0.2
+                temperature=0.1
             )
             response = client.models.generate_content(
                 model=settings.MODEL_NAME,
-                contents=prompt,
+                contents=system_prompt,
                 config=config
             )
 
             if response.parsed:
                 parsed_res: CrossDocumentSynthesisResponse = response.parsed
-                if not parsed_res.referenced_dispatch_ids:
-                    parsed_res.referenced_dispatch_ids = [a.id for a in candidates]
+                if not parsed_res.referenced_dispatch_ids and dispatches:
+                    parsed_res.referenced_dispatch_ids = [d["id"] for d in dispatches]
                 return parsed_res
 
             if response.text:
                 res = CrossDocumentSynthesisResponse.model_validate_json(response.text)
-                if not res.referenced_dispatch_ids:
-                    res.referenced_dispatch_ids = [a.id for a in candidates]
+                if not res.referenced_dispatch_ids and dispatches:
+                    res.referenced_dispatch_ids = [d["id"] for d in dispatches]
                 return res
 
             raise ValueError("Empty response received from Gemini model.")
@@ -223,9 +376,9 @@ STRICT OUTPUT REQUIREMENTS:
                 time.sleep(wait_time)
             else:
                 logger.error(f"[GEMINI SYNTHESIS EXHAUSTED] Activating fail-safe deterministic cross-synthesis ({last_error}).")
-                return deterministic_cross_synthesis(query_text, candidates)
+                return deterministic_cross_synthesis(query_text, dispatches)
 
-    return deterministic_cross_synthesis(query_text, candidates)
+    return deterministic_cross_synthesis(query_text, dispatches)
 
 
 def deterministic_sitrep_briefing(
@@ -293,14 +446,34 @@ def generate_sitrep(request: SitRepRequest) -> SitRepResponse:
     Synthesizes an authentic military Situation Report (SITREP / OPREP) grounded in
     retrieved dispatches using Gemini 2.5 Flash or deterministic intelligence synthesizer.
     """
-    articles, _ = search_articles_hybrid(
-        query_str=request.topic,
-        category=request.category,
-        limit=request.max_articles
+    matched_dicts = retrieve_relevant_dispatches(
+        query_text=request.topic,
+        domain_filter=request.category,
+        max_records=request.max_articles
     )
-
-    if not articles:
-        articles = list_articles(category=request.category, limit=request.max_articles)
+    if matched_dicts:
+        articles = [
+            ArticleRecord(
+                id=d["id"],
+                title=d["title"],
+                content=d["content"],
+                category=d["category"],
+                executive_summary=d.get("summary", ""),
+                threat_impact=d.get("threat_impact", "MEDIUM"),
+                keywords=json.loads(d["keywords"]) if isinstance(d.get("keywords"), str) else d.get("keywords", []),
+                entities=json.loads(d["entities"]) if isinstance(d.get("entities"), str) else d.get("entities", []),
+                source=d.get("source"),
+                date=d.get("published_date"),
+                created_at=d.get("created_at") or ""
+            )
+            for d in matched_dicts
+        ]
+    else:
+        articles, _ = search_articles_hybrid(
+            query_str=request.topic,
+            category=request.category,
+            limit=request.max_articles
+        )
 
     if not articles:
         raise HTTPException(

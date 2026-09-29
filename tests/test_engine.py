@@ -332,4 +332,51 @@ def test_static_branding_assets_and_header(client: TestClient):
     assert "gemini" not in html_text.lower()
 
 
+def test_precise_rag_qa_and_strict_relevance(client: TestClient):
+    """
+    Verifies that querying specific operational inquiries (e.g. Dornier Do 217N location):
+    1. Directly answers the question in the first sentence.
+    2. Excludes completely unrelated platforms (SDA, Tranche 1, UGVs).
+    3. Cites only relevant dispatches and platform tags.
+    """
+    # Ingest a specific Dornier record into test DB
+    dornier_payload = {
+        "title": "Luftwaffe Dornier Do 217N Heavy Night Fighter Reconnaissance",
+        "content": "Visual inspection identifies a German Luftwaffe Dornier Do 217N nocturnal heavy interceptor fitted with forward Lichtenstein radar dipoles. Operations confirmed in Germany.",
+        "source": "[IMINT SENSOR] 018-Dornier-Do-217N-night-fighter.jpg",
+        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    }
+    ingest_res = client.post("/api/ingest", json=dornier_payload)
+    assert ingest_res.status_code in [200, 409]
+
+    # Ingest an unrelated record (e.g. Space / SDA Tranche)
+    unrelated_payload = {
+        "title": "SDA Tranche 1 Transport Layer Satellite Constellation",
+        "content": "Space Development Agency deployed Tranche 1 optical crosslink satellites for low Earth orbit missile warning.",
+        "source": "Space OSINT Wire",
+        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    }
+    client.post("/api/ingest", json=unrelated_payload)
+
+    query = "Luftwaffe Dornier Do 217N Heavy Night Fighter Reconnaissance, WHERE DID IT OCCUR"
+    res = client.post("/api/intel/synthesize", json={"query": query})
+    assert res.status_code == 200
+    data = res.json()
+
+    assessment = data["executive_assessment"]
+    # Direct answer mandate: first sentence mentions location/Germany
+    first_sentence = assessment.split(".")[0]
+    assert ("occur" in first_sentence.lower() or "germany" in first_sentence.lower() or "dornier" in first_sentence.lower())
+    assert "germany" in assessment.lower()
+
+    # Strict relevance: unrelated platforms must NOT appear
+    platforms = data["related_platforms"]
+    assert "SDA" not in platforms
+    assert "Tranche 1" not in platforms
+    assert "Space Development Agency" not in platforms
+
+    # Dornier or Luftwaffe should appear in platforms
+    assert any("dornier" in p.lower() or "luftwaffe" in p.lower() for p in platforms)
+
+
 

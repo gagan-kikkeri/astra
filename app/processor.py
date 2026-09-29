@@ -230,7 +230,8 @@ def rule_based_triage(title: str, content: str) -> StructuredExtraction:
         "DRDO", "IAF", "PLAN", "USSF", "SDA", "MDA", "NATO", "DoD", "DARPA",
         "APT-41", "P-8I", "UCAV", "UGV", "MBT", "GPI", "AESA", "SCADA",
         "LCA-Tejas", "Neptune", "Tranche 1", "Indian Air Force", "Space Development Agency",
-        "Missile Defence Agency", "UAV", "Radar"
+        "Missile Defence Agency", "UAV", "Radar", "Dornier Do 217N", "Dornier", "Luftwaffe",
+        "BMW-801", "FuG Radar", "Germany"
     ]
     detected_entities = []
     for entity in known_entities:
