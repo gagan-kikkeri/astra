@@ -43,7 +43,8 @@ from app.database import (
     get_article_by_id,
     get_database_telemetry,
     get_article_by_hash,
-    insert_article
+    insert_article,
+    get_distinct_categories
 )
 from app.processor import (
     process_and_ingest_article,
@@ -163,6 +164,15 @@ async def health_check():
     }
 
 
+@app.get("/api/categories", response_model=List[str])
+async def get_active_categories():
+    """
+    Returns all active tactical defense categories, including both
+    the baseline taxonomy and any dynamically created military domains.
+    """
+    return get_distinct_categories()
+
+
 @app.get("/api/engine-status")
 @app.get("/api/engine/check")
 async def engine_status():
@@ -270,7 +280,8 @@ async def ingest_multimodal_file(file: UploadFile = File(...)):
             date=published_date,
             created_at=now_utc.isoformat(),
             category=extraction.category,
-            executive_summary=extraction.executive_summary,
+            detailed_summary=extraction.detailed_summary or extraction.executive_summary or "",
+            executive_summary=extraction.detailed_summary or extraction.executive_summary or "",
             threat_impact=extraction.threat_impact,
             keywords=extraction.keywords,
             entities=extraction.entities

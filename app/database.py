@@ -94,6 +94,17 @@ def init_db() -> None:
         conn.close()
 
 
+BASELINE_CATEGORIES: List[str] = [
+    "Aerospace",
+    "Naval",
+    "Land Systems",
+    "Cybersecurity",
+    "Space",
+    "AI/Robotics",
+    "Defence Technology"
+]
+
+
 def row_to_article(row: sqlite3.Row) -> ArticleRecord:
     """Maps a SQLite row into a validated ArticleRecord."""
     raw_keywords = row["keywords"]
@@ -101,6 +112,7 @@ def row_to_article(row: sqlite3.Row) -> ArticleRecord:
 
     keywords = json.loads(raw_keywords) if isinstance(raw_keywords, str) else list(raw_keywords)
     entities = json.loads(raw_entities) if isinstance(raw_entities, str) else list(raw_entities)
+    summary_text = row["summary"]
 
     return ArticleRecord(
         id=row["id"],
@@ -108,7 +120,8 @@ def row_to_article(row: sqlite3.Row) -> ArticleRecord:
         title=row["title"],
         content=row["content"],
         category=row["category"],
-        executive_summary=row["summary"],
+        detailed_summary=summary_text,
+        executive_summary=summary_text,
         threat_impact=row["threat_impact"],
         keywords=keywords,
         entities=entities,
@@ -123,6 +136,7 @@ def insert_article(article: ArticleRecord) -> ArticleRecord:
     conn = get_db_connection()
     try:
         cur = conn.cursor()
+        summary_val = article.detailed_summary or article.executive_summary or ""
         cur.execute("""
         INSERT INTO articles (
             id, content_hash, title, content, category,
@@ -135,7 +149,7 @@ def insert_article(article: ArticleRecord) -> ArticleRecord:
             article.title,
             article.content,
             article.category,
-            article.executive_summary,
+            summary_val,
             article.threat_impact,
             json.dumps(article.keywords),
             json.dumps(article.entities),
@@ -145,6 +159,26 @@ def insert_article(article: ArticleRecord) -> ArticleRecord:
         ))
         conn.commit()
         return article
+    finally:
+        conn.close()
+
+
+def get_distinct_categories() -> List[str]:
+    """
+    Returns all distinct categories currently stored in the database,
+    preserving baseline defense categories while dynamically appending
+    any newly registered categories in sorted order.
+    """
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT category FROM articles WHERE category IS NOT NULL AND category != ''")
+        db_cats = [r[0] for r in cur.fetchall()]
+        combined = list(BASELINE_CATEGORIES)
+        for cat in sorted(db_cats):
+            if cat not in combined:
+                combined.append(cat)
+        return combined
     finally:
         conn.close()
 

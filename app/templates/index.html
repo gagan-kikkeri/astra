@@ -556,16 +556,9 @@
         <!-- Filter Ribbon: Categories & Horizons -->
         <div class="flex flex-wrap items-center justify-between border-b border-slate-800 pb-2 gap-2">
           
-          <!-- Category Pills -->
-          <div class="flex items-center gap-1 overflow-x-auto text-[11px]">
-            <button onclick="setCategory('ALL')" data-category="ALL" class="cat-pill px-2 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold">[ALL]</button>
-            <button onclick="setCategory('Aerospace')" data-category="Aerospace" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[AEROSPACE]</button>
-            <button onclick="setCategory('Naval')" data-category="Naval" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[NAVAL]</button>
-            <button onclick="setCategory('Land Systems')" data-category="Land Systems" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[LAND]</button>
-            <button onclick="setCategory('Cybersecurity')" data-category="Cybersecurity" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[CYBER]</button>
-            <button onclick="setCategory('Space')" data-category="Space" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[SPACE]</button>
-            <button onclick="setCategory('AI/Robotics')" data-category="AI/Robotics" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[AI/ROBOTICS]</button>
-            <button onclick="setCategory('Defence Technology')" data-category="Defence Technology" class="cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400">[DEFENCE TECH]</button>
+          <!-- Category Pills Container (Dynamic Auto-Taxonomy Ribbon) -->
+          <div id="category-pills-container" class="flex items-center gap-1 overflow-x-auto text-[11px]">
+            <button onclick="setCategory('ALL')" data-category="ALL" class="cat-pill px-2 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold whitespace-nowrap">[ALL]</button>
           </div>
 
           <!-- Date Horizon Selector -->
@@ -694,6 +687,7 @@
         dateInput.value = new Date().toISOString().split('T')[0];
       }
       loadTelemetry();
+      loadCategoryRibbon();
       fetchDispatches();
     }
 
@@ -701,6 +695,52 @@
       document.addEventListener('DOMContentLoaded', initConsole);
     } else {
       initConsole();
+    }
+
+    // Dynamic Category Ribbon Controller
+    async function loadCategoryRibbon() {
+      try {
+        const res = await fetch('/api/categories');
+        if (!res.ok) return;
+        const categories = await res.json();
+        const container = document.getElementById('category-pills-container');
+        if (!container) return;
+
+        const currentActive = window.activeCategory || currentCategory || 'ALL';
+
+        let html = `
+          <button onclick="setCategory('ALL')" data-category="ALL" class="cat-pill px-2 py-0.5 border ${currentActive === 'ALL' ? 'border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold' : 'border-slate-800 text-slate-400 hover:text-emerald-400'} whitespace-nowrap">
+            [ALL]
+          </button>
+        `;
+
+        categories.forEach(cat => {
+          const isActive = (cat === currentActive);
+          const activeClass = isActive 
+            ? 'border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold' 
+            : 'border-slate-800 text-slate-400 hover:text-emerald-400';
+          html += `
+            <button onclick="setCategory('${escapeHtml(cat)}')" data-category="${escapeHtml(cat)}" class="cat-pill px-2 py-0.5 border ${activeClass} whitespace-nowrap">
+              [${escapeHtml(cat.toUpperCase())}]
+            </button>
+          `;
+        });
+
+        container.innerHTML = html;
+
+        // Sync SitRep category filter options
+        const sitrepCatSelect = document.getElementById('sitrepCategorySelect');
+        if (sitrepCatSelect) {
+          const selectedVal = sitrepCatSelect.value;
+          let selHtml = '<option value="ALL">All Domains</option>';
+          categories.forEach(cat => {
+            selHtml += `<option value="${escapeHtml(cat)}" ${cat === selectedVal ? 'selected' : ''}>${escapeHtml(cat)}</option>`;
+          });
+          sitrepCatSelect.innerHTML = selHtml;
+        }
+      } catch (err) {
+        console.error('Failed to load category ribbon:', err);
+      }
     }
 
     // 1. Tab Switching Controller
@@ -746,9 +786,9 @@
       window.activeCategory = cat;
       document.querySelectorAll('.cat-pill').forEach(btn => {
         if (btn.dataset.category === cat) {
-          btn.className = 'cat-pill px-2 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold';
+          btn.className = 'cat-pill px-2 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold whitespace-nowrap';
         } else {
-          btn.className = 'cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400';
+          btn.className = 'cat-pill px-2 py-0.5 border border-slate-800 text-slate-400 hover:text-emerald-400 whitespace-nowrap';
         }
       });
       triggerSearchAndFilter();
@@ -898,6 +938,7 @@
         // Prepend to dispatches feed
         articlesCache.unshift(newArticle);
         renderDispatches(articlesCache);
+        loadCategoryRibbon();
 
         // Update record count
         const recCount = document.getElementById('recordCount');
@@ -936,6 +977,7 @@
         if (data.articles && data.articles.length > 0) {
           articlesCache = [...data.articles, ...articlesCache];
           renderDispatches(articlesCache);
+          loadCategoryRibbon();
           const recCount = document.getElementById('recordCount');
           if (recCount) recCount.textContent = articlesCache.length;
         }
@@ -1034,6 +1076,7 @@
         // Prepend to wire
         articlesCache.unshift(newArticle);
         renderDispatches(articlesCache);
+        loadCategoryRibbon();
 
         const recCount = document.getElementById('recordCount');
         if (recCount) recCount.textContent = articlesCache.length;
@@ -1189,7 +1232,7 @@
             <div class="flex flex-wrap items-center justify-between text-xs gap-2">
               <div class="flex items-center space-x-2">
                 <span class="text-slate-400 font-mono text-[11px]">${escapeHtml(art.published_date || art.date || '--')}</span>
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${catColor}">
+                <span class="px-2 py-0.5 rounded font-mono text-[10px] uppercase tracking-wider font-bold border border-emerald-500/50 bg-emerald-950/50 text-emerald-300">
                   [${escapeHtml(art.category || 'DEFENCE')}]
                 </span>
                 <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${threatColor}">
@@ -1209,9 +1252,9 @@
               ${escapeHtml(art.title)}
             </h3>
 
-            <!-- 2-Sentence Summary -->
-            <p class="text-xs text-slate-200 font-sans leading-relaxed bg-[#070b10] p-2.5 rounded border border-slate-800/80 relative z-10">
-              ${escapeHtml(art.executive_summary || (art.content ? art.content.substring(0, 160) + '...' : ''))}
+            <!-- Detailed Operational Brief (4-5 Sentences) -->
+            <p class="text-slate-300 font-sans text-xs leading-relaxed mb-3 bg-[#070b10] p-2.5 rounded border border-slate-800/80 relative z-10">
+              ${escapeHtml(art.detailed_summary || art.executive_summary || (art.content ? art.content.substring(0, 240) + '...' : ''))}
             </p>
 
             <!-- Entity Chips & Source Footer -->
@@ -1255,7 +1298,7 @@
       document.getElementById('modalCategory').textContent = art.category;
       document.getElementById('modalThreat').textContent = art.threat_impact;
       document.getElementById('modalTitle').textContent = art.title;
-      document.getElementById('modalSummary').textContent = art.executive_summary;
+      document.getElementById('modalSummary').textContent = art.detailed_summary || art.executive_summary;
       document.getElementById('modalContent').textContent = art.content;
       document.getElementById('modalHash').textContent = art.content_hash;
 

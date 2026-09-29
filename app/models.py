@@ -3,23 +3,17 @@ Strict Pydantic models and defence intelligence taxonomy for ASTRA Sentinel.
 Ensures deterministic typing matching the ASTRA evaluation rubric.
 """
 
-from typing import Literal, Optional, List, Dict, Any
-from pydantic import BaseModel, Field, field_validator
+from typing import Optional, List, Dict, Any, Union
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-# Primary Defence Intelligence Taxonomy
-CategoryEnum = Literal[
-    "Aerospace",
-    "Naval",
-    "Land Systems",
-    "Cybersecurity",
-    "Space",
-    "AI/Robotics",
-    "Defence Technology"
-]
+# Primary Defence Intelligence Taxonomy - Open / Self-expanding string definition
+# Base domains: Aerospace, Naval, Land Systems, Cybersecurity, Space, AI/Robotics, Defence Technology
+# Can also be dynamically generated domains (e.g. 'Electronic Warfare', 'Undersea Warfare', 'Hypersonics', etc.)
+CategoryEnum = str
 
 # Standard Military Threat Assessment Scale
-ThreatImpact = Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+ThreatImpact = str
 
 
 class ArticleIngestInput(BaseModel):
@@ -39,33 +33,50 @@ class ArticleIngestInput(BaseModel):
 
 
 class StructuredExtraction(BaseModel):
-    """Structured intelligence extraction schema produced by Gemini or deterministic fallback."""
+    """Structured intelligence extraction schema produced by Gemini or autonomous local triage."""
     title: Optional[str] = Field(
         default=None,
         description="Concrete headline identifying the visible subject or document"
     )
-    category: CategoryEnum = Field(
+    category: str = Field(
         ...,
-        description="Assigned defence intelligence taxonomy category"
+        description="The primary tactical domain. Match baseline categories (Aerospace, Naval, Land Systems, Cybersecurity, Space, AI/Robotics, Defence Technology) OR autonomously generate a concise new military domain (e.g., 'Electronic Warfare', 'Undersea Warfare', 'Hypersonics') if none of the baselines accurately fit."
     )
-    executive_summary: str = Field(
-        ...,
-        description="Exactly two factual sentences summarizing the tactical impact."
+    detailed_summary: str = Field(
+        default="",
+        description="A substantive 4 to 5 sentence operational debrief detailing the platform/program background, core technical capabilities, tactical testing/deployment status, and strategic impact."
     )
-    threat_impact: ThreatImpact = Field(
-        ...,
-        description="Assessed operational threat impact rating"
+    executive_summary: Optional[str] = Field(
+        default=None,
+        description="Substantive 4 to 5 sentence operational debrief (interchangeable with detailed_summary)."
     )
+    threat_impact: str = Field(..., description="LOW, MEDIUM, HIGH, or CRITICAL")
     keywords: List[str] = Field(
         ...,
         min_length=3,
-        max_length=6,
-        description="3 to 6 normalized intelligence topic tags"
+        max_length=8,
+        description="Normalized lowercase tactical tags"
     )
     entities: List[str] = Field(
         ...,
-        description="Identified platforms, weapon systems, military branches, or organizations."
+        min_length=1,
+        max_length=12,
+        description="Identified platforms, manufacturers, government branches, or weapon systems"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_summaries(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            ds = data.get("detailed_summary")
+            es = data.get("executive_summary")
+            sm = data.get("summary")
+            resolved = ds or es or sm or ""
+            if not data.get("detailed_summary"):
+                data["detailed_summary"] = resolved
+            if not data.get("executive_summary"):
+                data["executive_summary"] = resolved
+        return data
 
 
 class ImageAnalysisExtraction(StructuredExtraction):
@@ -136,13 +147,25 @@ class AnalyzeResponse(BaseModel):
     source: str
     date: str
     created_at: str
-    category: CategoryEnum
-    threat_impact: ThreatImpact
+    category: str
+    threat_impact: str
+    detailed_summary: str = ""
     executive_summary: str
     entities: List[str]
     keywords: List[str]
     engine_used: str
     agent_trace: List[AgentStep]
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_summaries(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            resolved = data.get("detailed_summary") or data.get("executive_summary") or ""
+            if not data.get("detailed_summary"):
+                data["detailed_summary"] = resolved
+            if not data.get("executive_summary"):
+                data["executive_summary"] = resolved
+        return data
 
 
 class SitRepRequest(BaseModel):

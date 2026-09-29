@@ -379,4 +379,46 @@ def test_precise_rag_qa_and_strict_relevance(client: TestClient):
     assert any("dornier" in p.lower() or "luftwaffe" in p.lower() for p in platforms)
 
 
+def test_dynamic_categories_and_deep_operational_briefing(client: TestClient):
+    """
+    Verifies:
+    1. /api/categories returns baseline categories initially.
+    2. Ingesting an emerging defense dispatch outside baseline domains creates an autonomous category.
+    3. The newly generated category dynamically appears in /api/categories immediately.
+    4. The detailed_summary / executive_summary contains an authoritative 4-to-5 sentence briefing.
+    """
+    # 1. Check baseline categories
+    cats_res = client.get("/api/categories")
+    assert cats_res.status_code == 200
+    baseline_list = cats_res.json()
+    assert isinstance(baseline_list, list)
+    for expected_base in ["Aerospace", "Naval", "Land Systems", "Cybersecurity", "Space", "AI/Robotics", "Defence Technology"]:
+        assert expected_base in baseline_list
+
+    # 2. Ingest emerging dispatch outside 7 baseline domains (Quantum Defense / Cryptography)
+    emerging_payload = {
+        "title": "Quantum Radar Cryptography and Entangled Photon Sensor Network Field Trials",
+        "content": "Special tactical research commands deployed an advanced quantum radar network utilizing entangled photon transceiver nodes across contested border sectors. The quantum cryptography architecture eliminates vulnerability to conventional radio frequency jamming and electronic deception. Distributed quantum key distribution (QKD) nodes maintain secure telemetry between forward air defense batteries. Field testing confirmed unprecedented target resolution against low-observable stealth surfaces. Operational commands are assessing theater-wide deployment to strengthen strategic counter-stealth deterrence.",
+        "source": "Quantum Defence Technical Directorate",
+        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    }
+
+    ingest_res = client.post("/api/ingest", json=emerging_payload)
+    assert ingest_res.status_code in [200, 409]
+    if ingest_res.status_code == 200:
+        record = ingest_res.json()
+        assert record["category"] == "Quantum Defense"
+        assert record["detailed_summary"]
+        # Must be substantive 4-5 sentences
+        sentences = [s for s in record["detailed_summary"].split(".") if len(s.strip()) > 10]
+        assert len(sentences) >= 4, f"Expected 4-5 sentences, got {len(sentences)}"
+
+    # 3. Check /api/categories dynamically includes the new category
+    updated_cats_res = client.get("/api/categories")
+    assert updated_cats_res.status_code == 200
+    updated_list = updated_cats_res.json()
+    assert "Quantum Defense" in updated_list
+
+
+
 
