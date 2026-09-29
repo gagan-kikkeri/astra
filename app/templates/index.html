@@ -658,7 +658,7 @@
     };
 
     // Initialization
-    document.addEventListener('DOMContentLoaded', () => {
+    function initConsole() {
       window.activeCategory = 'ALL';
       window.activeHorizon = 'ALL';
       initSearchListener();
@@ -669,7 +669,13 @@
       }
       loadTelemetry();
       fetchDispatches();
-    });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initConsole);
+    } else {
+      initConsole();
+    }
 
     // 1. Tab Switching Controller
     function switchTab(tabId) {
@@ -736,8 +742,6 @@
     }
 
     // 4. Live Recon Search Listener & Dispatcher
-    let searchDebounceTimer = null;
-
     function initSearchListener() {
       const searchInput = document.getElementById('recon-search-input');
       if (searchInput) {
@@ -1181,7 +1185,7 @@
 
             <!-- 2-Sentence Summary -->
             <p class="text-xs text-slate-300 font-sans leading-relaxed">
-              ${escapeHtml(art.executive_summary || art.content.substring(0, 160) + '...')}
+              ${escapeHtml(art.executive_summary || (art.content ? art.content.substring(0, 160) + '...' : ''))}
             </p>
 
             <!-- Entity Chips & Source Footer -->
