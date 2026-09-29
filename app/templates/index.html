@@ -85,14 +85,68 @@
       border-color: #ef4444 !important;
       box-shadow: 0 0 0 1px #ef4444 !important;
     }
+
+    /* Full-Page Tactical Background Insignia Layer */
+    .tactical-bg-layer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .tactical-bg-image {
+      width: 100%;
+      height: 100%;
+      max-width: 1100px;
+      max-height: 1100px;
+      background-image: url('/static/img/astra_bg.jpg');
+      background-repeat: no-repeat;
+      background-position: center center;
+      background-size: contain;
+      opacity: 0.35;
+      filter: contrast(120%) brightness(105%);
+      mask-image: radial-gradient(circle at center, black 52%, transparent 88%);
+      -webkit-mask-image: radial-gradient(circle at center, black 52%, transparent 88%);
+    }
+
+    .tactical-bg-glow {
+      position: absolute;
+      width: 750px;
+      height: 750px;
+      border-radius: 9999px;
+      background: radial-gradient(circle at center, rgba(215, 180, 96, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* Semi-translucent glass cards to let the background insignia shine through */
+    .bg-brand-card {
+      background-color: rgba(15, 23, 42, 0.88) !important;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
   </style>
 </head>
-<body class="min-h-screen flex flex-col antialiased selection:bg-emerald-600 selection:text-white">
+<body class="min-h-screen flex flex-col antialiased selection:bg-emerald-600 selection:text-white relative bg-[#080c14]">
+
+  <!-- ========================================================================= -->
+  <!-- FULL PAGE TACTICAL INSIGNIA WATERMARK (ASTRA GOLD CREST)                  -->
+  <!-- ========================================================================= -->
+  <div class="tactical-bg-layer" aria-hidden="true">
+    <div class="tactical-bg-glow"></div>
+    <div class="tactical-bg-image"></div>
+  </div>
 
   <!-- ========================================================================= -->
   <!-- TOP TACTICAL NAVIGATION BAR                                               -->
   <!-- ========================================================================= -->
-  <header class="border-b border-brand-border bg-brand-base/90 backdrop-blur-md sticky top-0 z-40">
+  <header class="border-b border-brand-border bg-brand-base/90 backdrop-blur-md sticky top-0 z-40 relative">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between">
       
       <!-- Title & Status -->
@@ -126,7 +180,7 @@
   <!-- ========================================================================= -->
   <!-- MAIN WORKSTATION CONTAINER                                                -->
   <!-- ========================================================================= -->
-  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6 relative z-10">
 
     <!-- GLOBAL TOAST NOTIFICATIONS (Client error & SHA-256 collision warnings) -->
     <div id="clientErrorToast" class="hidden p-3 rounded border border-red-500 bg-red-950/80 text-red-200 text-xs font-mono flex items-center justify-between shadow-xl">

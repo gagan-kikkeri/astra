@@ -305,20 +305,26 @@ def test_static_branding_assets_and_header(client: TestClient):
     Tests that static branding assets are served at /static/img/astra_logo.svg
     and that the index page references the official logo without exposing 'Gemini' in UI.
     """
-    # 1. Verify static asset exists and is served
+    # 1. Verify static assets exist and are served
     logo_res = client.get("/static/img/astra_logo.svg")
     assert logo_res.status_code == 200, f"Expected 200 for logo SVG, got {logo_res.status_code}"
     assert "image/svg+xml" in logo_res.headers.get("content-type", "") or "<svg" in logo_res.text
 
-    # 2. Verify root page renders header with official logo and badges
+    bg_res = client.get("/static/img/astra_bg.jpg")
+    assert bg_res.status_code == 200, f"Expected 200 for bg JPG, got {bg_res.status_code}"
+    assert "image/jpeg" in bg_res.headers.get("content-type", "")
+
+    # 2. Verify root page renders header with official logo, badges, and background watermark
     root_res = client.get("/")
     assert root_res.status_code == 200
     html_text = root_res.text
     assert "/static/img/astra_logo.svg" in html_text
+    assert "/static/img/astra_bg.jpg" in html_text
     assert "ASTRA SENTINEL" in html_text
     assert "BMSIT&M DEFENCE TECH" in html_text
     assert "Tactical OSINT & Information Monitoring Workstation" in html_text
 
     # 3. Verify zero occurrences of Gemini in UI text
     assert "gemini" not in html_text.lower()
+
 
