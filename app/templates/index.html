@@ -963,24 +963,31 @@
       const btn = document.getElementById('syncRssBtn');
 
       if (spinner) spinner.classList.remove('hidden');
-      if (label) label.textContent = 'SYNCING STREAM...';
+      if (label) label.textContent = '[⚡ INTERCEPTING LIVE RSS SIGNALS...]';
       if (btn) btn.disabled = true;
 
       try {
-        const res = await fetch('/api/ingest/sync-live-feed?limit=3', { method: 'POST' });
+        const res = await fetch('/api/ingest/sync-live-feed', { method: 'POST' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
-        showToast('syncToast', `[PUBLIC STREAM: ${data.message}]`);
+        const ingestedCount = data.ingested_count !== undefined ? data.ingested_count : (data.articles ? data.articles.length : 0);
+        const skippedCount = data.skipped_duplicates !== undefined ? data.skipped_duplicates : 0;
+        const bannerMsg = `✓ INTERCEPT SUCCESSFUL: ${ingestedCount} new real-world dispatches ingested (${skippedCount} duplicates skipped)`;
 
-        // Prepend new articles
+        showToast('syncToast', bannerMsg);
+
+        // Prepend new articles to local cache if provided
         if (data.articles && data.articles.length > 0) {
           articlesCache = [...data.articles, ...articlesCache];
           renderDispatches(articlesCache);
-          loadCategoryRibbon();
-          const recCount = document.getElementById('recordCount');
-          if (recCount) recCount.textContent = articlesCache.length;
         }
+
+        // Live Refresh: triggerSearchAndFilter and loadCategoryRibbon immediately
+        await triggerSearchAndFilter();
+        await loadCategoryRibbon();
+
+        loadTelemetry();
       } catch (err) {
         showToast('clientErrorToast', `[STREAM ERROR: Failed to sync public RSS feed - ${err.message}]`);
       } finally {

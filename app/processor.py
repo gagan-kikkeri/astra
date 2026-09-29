@@ -7,6 +7,7 @@ and fail-safe dynamic reasoning.
 import os
 import re
 import io
+import json
 import time
 import uuid
 import hashlib
@@ -18,6 +19,7 @@ import httpx
 from fastapi import HTTPException
 import pypdf
 import feedparser
+import requests
 from PIL import Image
 
 from app.config import GEMINI_API_KEY, settings, logger
@@ -969,140 +971,187 @@ def process_file_upload(file_bytes: bytes, filename: str, content_type: Optional
     return record
 
 
-FALLBACK_PUBLIC_DISPATCHES = [
+# Verified, active public defence & security RSS feeds
+REAL_DEFENCE_FEEDS = [
     {
-        "title": "Allied Air Command Exercises Agile Combat Employment in Contested Sectors",
-        "content": "NATO Allied Air Command dispersed multi-role combat aircraft across remote highway strips and dispersed airfields across Northern Europe to validate Agile Combat Employment (ACE) protocols under simulated electronic jamming and GPS denial environments.",
-        "source": "Defense News Wire"
+        "source": "PIB National & Defence Wire",
+        "url": "https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3"
     },
     {
-        "title": "Naval Strike Group Validates Cooperative Engagement Capability with GaN AESA Radar",
-        "content": "Allied naval task forces completed integrated air and missile defense drills utilizing Cooperative Engagement Capability (CEC). Surface destroyers shared distributed GaN AESA radar tracking data over encrypted tactical data links to intercept supersonic target simulators beyond the radar horizon.",
-        "source": "USNI Naval Posture"
+        "source": "USNI Maritime News Wire",
+        "url": "https://news.usni.org/feed"
     },
     {
-        "title": "Counter-UAS High-Energy Directed Laser Weapon Intercepts Autonomous Drone Swarms",
-        "content": "Defense technology researchers successfully neutralized an incoming swarm of autonomous rotary-wing drones using a 50kW mobile directed energy high-energy laser system, demonstrating sub-second dwell times per target kill in live trials.",
-        "source": "UK Defence Journal"
+        "source": "Defense News Wire",
+        "url": "https://www.defensenews.com/arc/outboundfeeds/rss/"
+    },
+    {
+        "source": "Naval News Dispatch",
+        "url": "https://www.navalnews.com/feed/"
+    },
+    {
+        "source": "UK Defence Journal",
+        "url": "https://ukdefencejournal.org.uk/feed/"
     }
 ]
 
 
-def sync_public_rss_stream(max_entries: int = 3) -> SyncFeedResponse:
-    """
-    Pulls live public defence RSS feeds (Defense News / UK Defence Journal / USNI).
-    Deduplicates via SHA-256, triages, and indexes into SQLite WAL + FTS5.
-    Provides fail-safe fallback to curated public dispatches if network is unavailable.
-    """
-    feed_sources = [
-        ("Defense News", "https://www.defensenews.com/arc/outboundfeeds/rss/"),
-        ("Naval News", "https://www.navalnews.com/feed/"),
-        ("PIB Defence Press Releases", "https://pib.gov.in/RssMain.aspx?ModId=6"),
-        ("UK Defence Journal", "https://ukdefencejournal.org.uk/feed/"),
-        ("USNI News", "https://news.usni.org/feed")
-    ]
+def triage_dispatch_payload(title: str, content: str) -> StructuredExtraction:
+    """Autonomous Neural Classification & Triage (Gemini 2.5 Flash / dynamic local synthesis)."""
+    extraction, _ = triage_with_gemini(title, content)
+    return extraction
 
-    feed_name_used = "Public OSINT Wire"
-    parsed_entries = []
 
-    for name, url in feed_sources:
+def sync_live_defense_feeds(limit_per_feed: int = 3) -> dict:
+    """
+    Retrieves live RSS XML entries from verified public defense feeds,
+    verifies uniqueness via SHA-256 fingerprint, triages them through the
+    autonomous extraction engine, and inserts them into SQLite and FTS5.
+    """
+    import sqlite3
+    import requests
+
+    db_path = settings.DB_PATH or "data/sentinel.db"
+    conn = sqlite3.connect(db_path, timeout=15.0)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL;")
+    cursor = conn.cursor()
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ASTRA-Sentinel/2.0 OSINT-Agent"
+    }
+
+    ingested_count = 0
+    skipped_duplicates = 0
+    newly_added_records = []
+    new_article_records = []
+
+    for feed_info in REAL_DEFENCE_FEEDS:
         try:
-            resp = httpx.get(
-                url,
-                timeout=10.0,
-                follow_redirects=True,
-                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ASTRA-Sentinel/2.5"}
-            )
-            if resp.status_code == 200 and resp.text:
-                feed = feedparser.parse(resp.text)
-                if feed.entries:
-                    parsed_entries = feed.entries
-                    feed_name_used = name
-                    logger.info(f"[RSS SYNC] Connected to '{name}' ({len(feed.entries)} entries found).")
-                    break
+            # Fetch RSS feed with custom timeout and User-Agent
+            resp = requests.get(feed_info["url"], headers=headers, timeout=8)
+            if resp.status_code != 200 or not resp.content:
+                continue
+
+            parsed = feedparser.parse(resp.content)
+            entries = parsed.entries[:limit_per_feed]
+            if not entries:
+                continue
+
+            for entry in entries:
+                title = entry.get("title", "").strip()
+                # Clean HTML tags from summary/content if present
+                raw_summary = entry.get("summary", "") or entry.get("description", "")
+                clean_content = re.sub(r'<[^>]+>', '', raw_summary).strip()
+                clean_content = re.sub(r'\s+', ' ', clean_content)
+
+                if not clean_content:
+                    clean_content = title
+
+                if len(title) < 5 or len(clean_content) < 15:
+                    continue
+
+                # Compute SHA-256 for deterministic deduplication
+                content_hash = compute_content_hash(title, clean_content)
+
+                # Check for collision
+                cursor.execute("SELECT id FROM articles WHERE content_hash = ?", (content_hash,))
+                if cursor.fetchone():
+                    skipped_duplicates += 1
+                    continue
+
+                # Parse publication date
+                published_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                if "published_parsed" in entry and entry.published_parsed:
+                    try:
+                        published_date = datetime(*entry.published_parsed[:6]).strftime("%Y-%m-%d")
+                    except Exception:
+                        pass
+
+                # Autonomous Neural Classification & Triage (Gemini 2.5 Flash / dynamic engine)
+                # Extracts: category (dynamic or standard), detailed_summary, threat_impact, entities, keywords
+                extraction = triage_dispatch_payload(title, clean_content)
+
+                record_id = f"AST-LIVE-{content_hash[:8].upper()}"
+                now_str = datetime.now(timezone.utc).isoformat()
+                summary_val = extraction.detailed_summary or extraction.executive_summary or ""
+
+                cursor.execute("""
+                    INSERT INTO articles (
+                        id, content_hash, title, content, category, summary, threat_impact, 
+                        keywords, entities, source, published_date, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    record_id,
+                    content_hash,
+                    title,
+                    clean_content,
+                    extraction.category,
+                    summary_val,
+                    extraction.threat_impact,
+                    json.dumps(extraction.keywords),
+                    json.dumps(extraction.entities),
+                    feed_info["source"],
+                    published_date,
+                    now_str
+                ))
+
+                # FTS5 trigger synchronizes automatically
+                ingested_count += 1
+                feed_ingested += 1
+
+                record_dict = {
+                    "id": record_id,
+                    "title": title,
+                    "category": extraction.category,
+                    "published_date": published_date,
+                    "summary": summary_val,
+                    "detailed_summary": summary_val,
+                    "executive_summary": summary_val,
+                    "entities": extraction.entities,
+                    "keywords": extraction.keywords,
+                    "threat_impact": extraction.threat_impact,
+                    "source": feed_info["source"]
+                }
+                newly_added_records.append(record_dict)
+
+                art_record = ArticleRecord(
+                    id=record_id,
+                    content_hash=content_hash,
+                    title=title,
+                    content=clean_content,
+                    category=extraction.category,
+                    detailed_summary=summary_val,
+                    executive_summary=summary_val,
+                    threat_impact=extraction.threat_impact,
+                    keywords=extraction.keywords,
+                    entities=extraction.entities,
+                    source=feed_info["source"],
+                    date=published_date,
+                    created_at=now_str
+                )
+                new_article_records.append(art_record)
+                logger.info(f"[RSS INGEST] Indexed real-world dispatch {record_id} from {feed_info['source']}: {title[:60]}")
+
         except Exception as e:
-            logger.warning(f"[RSS SYNC] Feed fetch failed for {name} ({url}): {e}")
+            logger.warning(f"[RSS INGESTION ERROR] Feed {feed_info['source']} failed: {e}")
+            continue
 
-    new_records: List[ArticleRecord] = []
-    now_utc = datetime.now(timezone.utc)
-    today_iso = now_utc.strftime("%Y-%m-%d")
+    conn.commit()
+    conn.close()
 
-    if parsed_entries:
-        for entry in parsed_entries:
-            if len(new_records) >= max_entries:
-                break
+    return {
+        "status": "success",
+        "ingested_count": ingested_count,
+        "skipped_duplicates": skipped_duplicates,
+        "feed_source": "Live Defense RSS Stream",
+        "message": f"✓ INTERCEPT SUCCESSFUL: {ingested_count} new real-world dispatches ingested ({skipped_duplicates} duplicates skipped)",
+        "new_records": newly_added_records,
+        "articles": new_article_records
+    }
 
-            title = entry.get("title", "").strip()
-            summary = entry.get("summary", "") or entry.get("description", "")
-            cleaned_content = re.sub(r'<[^>]+>', ' ', summary).strip()
-            cleaned_content = re.sub(r'\s+', ' ', cleaned_content)
 
-            if len(title) < 5 or len(cleaned_content) < 20:
-                continue
-
-            content_hash = compute_content_hash(title, cleaned_content)
-            existing = get_article_by_hash(content_hash)
-            if existing:
-                continue
-
-            extraction, _ = triage_with_gemini(title, cleaned_content)
-            article_id = f"AST-{uuid.uuid4().hex[:8].upper()}"
-
-            record = ArticleRecord(
-                id=article_id,
-                content_hash=content_hash,
-                title=title,
-                content=cleaned_content,
-                source=f"[LIVE RSS] {feed_name_used}",
-                date=today_iso,
-                created_at=now_utc.isoformat(),
-                category=extraction.category,
-                executive_summary=extraction.executive_summary,
-                threat_impact=extraction.threat_impact,
-                keywords=extraction.keywords,
-                entities=extraction.entities
-            )
-            insert_article(record)
-            new_records.append(record)
-            logger.info(f"[RSS INGEST] Indexed live dispatch {record.id}: {record.title[:60]}")
-
-    # Fallback to curated public dispatches if no live entries were newly indexed
-    if not new_records and not parsed_entries:
-        feed_name_used = "Public OSINT Wire (Curated Stream)"
-        for item in FALLBACK_PUBLIC_DISPATCHES:
-            if len(new_records) >= max_entries:
-                break
-            content_hash = compute_content_hash(item["title"], item["content"])
-            existing = get_article_by_hash(content_hash)
-            if existing:
-                continue
-
-            extraction, _ = triage_with_gemini(item["title"], item["content"])
-            article_id = f"AST-{uuid.uuid4().hex[:8].upper()}"
-            record = ArticleRecord(
-                id=article_id,
-                content_hash=content_hash,
-                title=item["title"],
-                content=item["content"],
-                source=f"[LIVE RSS] {item['source']}",
-                date=today_iso,
-                created_at=now_utc.isoformat(),
-                category=extraction.category,
-                executive_summary=extraction.executive_summary,
-                threat_impact=extraction.threat_impact,
-                keywords=extraction.keywords,
-                entities=extraction.entities
-            )
-            insert_article(record)
-            new_records.append(record)
-            logger.info(f"[RSS FALLBACK INGEST] Indexed {record.id}: {record.title[:60]}")
-
-    msg = f"Synced {len(new_records)} new live dispatches from {feed_name_used}." if new_records else "All dispatches from live public wire are already indexed in Sentinel."
-
-    return SyncFeedResponse(
-        status="success",
-        ingested_count=len(new_records),
-        feed_source=feed_name_used,
-        message=msg,
-        articles=new_records
-    )
+def sync_public_rss_stream(max_entries: int = 3) -> SyncFeedResponse:
+    """Compatibility wrapper returning SyncFeedResponse for legacy callers."""
+    res = sync_live_defense_feeds(limit_per_feed=max_entries)
+    return SyncFeedResponse(**res)

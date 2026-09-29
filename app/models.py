@@ -218,8 +218,10 @@ class SystemTelemetry(BaseModel):
 
 class SyncFeedResponse(BaseModel):
     """Response payload for the public RSS feed synchronization endpoint."""
-    status: str
-    ingested_count: int
-    feed_source: str
-    message: str
-    articles: List[ArticleRecord]
+    status: str = "SUCCESS"
+    ingested_count: int = 0
+    skipped_duplicates: int = 0
+    feed_source: str = "Live Defense RSS Stream"
+    message: str = ""
+    articles: List[ArticleRecord] = Field(default_factory=list)
+    new_records: List[Dict[str, Any]] = Field(default_factory=list)

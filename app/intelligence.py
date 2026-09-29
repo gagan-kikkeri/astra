@@ -455,9 +455,11 @@ def generate_sitrep(request: SitRepRequest) -> SitRepResponse:
         articles = [
             ArticleRecord(
                 id=d["id"],
+                content_hash=d.get("content_hash") or f"HASH-{d['id']}",
                 title=d["title"],
                 content=d["content"],
                 category=d["category"],
+                detailed_summary=d.get("summary", ""),
                 executive_summary=d.get("summary", ""),
                 threat_impact=d.get("threat_impact", "MEDIUM"),
                 keywords=json.loads(d["keywords"]) if isinstance(d.get("keywords"), str) else d.get("keywords", []),

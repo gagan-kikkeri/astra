@@ -52,6 +52,7 @@ from app.processor import (
     get_gemini_client,
     process_file_upload,
     sync_public_rss_stream,
+    sync_live_defense_feeds,
     analyze_image_dispatch
 )
 from app.intelligence import execute_search, generate_sitrep, synthesize_cross_intelligence
@@ -298,12 +299,13 @@ async def ingest_multimodal_file(file: UploadFile = File(...)):
 
 
 @app.post("/api/ingest/sync-live-feed", response_model=SyncFeedResponse, status_code=status.HTTP_200_OK)
-async def sync_live_feed(limit: int = Query(default=3, ge=1, le=10)):
+def handle_sync_live_feed(limit: int = Query(default=3, ge=1, le=10)):
     """
-    Syncs live public OSINT dispatches from trusted public RSS feeds (Defense News / UK Defence Journal / USNI).
+    Syncs live public OSINT dispatches from verified defense RSS feeds.
     Extracts, deduplicates via SHA-256, triages, and indexes into Sentinel database.
     """
-    return sync_public_rss_stream(max_entries=limit)
+    result = sync_live_defense_feeds(limit_per_feed=limit)
+    return result
 
 
 @app.post("/api/analyze", response_model=AnalyzeResponse, status_code=status.HTTP_200_OK)
