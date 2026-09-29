@@ -89,9 +89,46 @@
     .bg-brand-card {
       background-color: #0d1218 !important;
     }
+
+    /* Fixed Full-Page Tactical Background Insignia */
+    .tactical-bg-layer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .tactical-bg-image {
+      width: 100%;
+      height: 100%;
+      max-width: 1000px;
+      max-height: 1000px;
+      background-image: url('/static/img/astra_bg.jpg');
+      background-repeat: no-repeat;
+      background-position: center 42%;
+      background-size: contain;
+      opacity: 0.16;
+      filter: contrast(125%) brightness(105%);
+      mask-image: radial-gradient(circle at center, black 45%, transparent 80%);
+      -webkit-mask-image: radial-gradient(circle at center, black 45%, transparent 80%);
+    }
   </style>
 </head>
-<body class="min-h-screen flex flex-col antialiased selection:bg-emerald-600 selection:text-white bg-[#080c10]">
+<body class="min-h-screen flex flex-col antialiased selection:bg-emerald-600 selection:text-white relative bg-[#080c10]">
+
+  <!-- ========================================================================= -->
+  <!-- FULL PAGE TACTICAL INSIGNIA WATERMARK (ASTRA GOLD CREST)                  -->
+  <!-- ========================================================================= -->
+  <div class="tactical-bg-layer" aria-hidden="true">
+    <div class="tactical-bg-image"></div>
+  </div>
 
   <!-- ========================================================================= -->
   <!-- A. INTEGRATED HEADER BANNER                                               -->
@@ -115,7 +152,7 @@
       <!-- Right: Engine Pill & Active Database Telemetry -->
       <div class="flex items-center gap-2 font-mono text-xs">
         <span id="engineBadge" class="px-2.5 py-1 rounded border border-emerald-500/70 bg-emerald-950/40 text-emerald-400 font-bold text-[11px] shadow-sm shadow-emerald-950">
-          ● ENGINE: GEMINI-2.5-FLASH [ONLINE]
+          ● ENGINE: ASTRA-CORE [ONLINE]
         </span>
         <span id="dbTelemetryBadge" class="px-2.5 py-1 rounded border border-slate-700 bg-slate-900 px-2.5 py-1 text-slate-300 text-[11px] hidden sm:inline-block">
           SQLITE WAL+FTS5 | <span id="recordCount">37</span> RECORDS
@@ -194,7 +231,7 @@
             onclick="switchTab('rag')" 
             class="px-3 py-1.5 rounded text-[11px] uppercase tracking-wider transition-all border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
           >
-            [3. GEMINI RAG INTEL BRIEFING]
+            [3. ASTRA RAG INTEL BRIEFING]
           </button>
         </div>
 
@@ -368,7 +405,7 @@
 
       </div>
 
-      <!-- TAB 3 PANE: [GEMINI RAG INTEL BRIEFING] -->
+      <!-- TAB 3 PANE: [ASTRA RAG INTEL BRIEFING] -->
       <div id="tab-pane-rag" class="hidden p-5 space-y-4">
         
         <div class="flex items-center justify-between text-xs pb-1">
@@ -656,7 +693,7 @@
           }
           const engineBadge = document.getElementById('engineBadge');
           if (engineBadge) {
-            engineBadge.innerHTML = '● ENGINE: GEMINI-2.5-FLASH [ONLINE]';
+            engineBadge.innerHTML = '● ENGINE: ASTRA-CORE [ONLINE]';
             engineBadge.className = 'px-2.5 py-1 rounded border border-emerald-500/70 bg-emerald-950/40 text-emerald-400 font-bold text-[11px] shadow-sm shadow-emerald-950';
           }
         }
@@ -974,7 +1011,7 @@
       }
     }
 
-    // 9. Gemini RAG Intel Briefing Synthesizer
+    // 9. ASTRA RAG Intel Briefing Synthesizer
     async function generateSitRep() {
       const queryInput = document.getElementById('sitrepQueryInput');
       const categorySelect = document.getElementById('sitrepCategorySelect');
