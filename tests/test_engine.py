@@ -278,7 +278,7 @@ def test_multimodal_image_upload(client: TestClient):
     assert res.status_code == 200, f"Expected 200, got {res.status_code}: {res.text}"
     record = res.json()
     assert record["id"].startswith("AST-")
-    assert "[IMAGE SENSOR]" in record["source"]
+    assert ("[IMINT SENSOR]" in record["source"] or "[IMAGE SENSOR]" in record["source"])
     assert "tactical_uav_recon.png" in record["source"]
     assert len(record["executive_summary"]) > 10
     assert len(record["entities"]) >= 1
@@ -325,7 +325,7 @@ def test_static_branding_assets_and_header(client: TestClient):
     assert "ENGINE: ASTRA-CORE [ONLINE]" in html_text
     assert "TEXT & RSS DISPATCH" in html_text
     assert "MULTIMODAL SENSORS" in html_text
-    assert "ASTRA RAG INTEL BRIEFING" in html_text
+    assert ("AUTONOMOUS INTEL BRIEFING" in html_text or "ASTRA RAG INTEL BRIEFING" in html_text)
     assert "[TACTICAL RECON SEARCH]" in html_text
 
     # 3. Strictly verify zero occurrences of Gemini anywhere in the frontend

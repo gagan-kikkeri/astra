@@ -16,6 +16,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+import hashlib
+import uuid
+import re
+from datetime import datetime, timezone
+
 from app.config import settings, logger
 from app.models import (
     ArticleIngestInput,
@@ -36,14 +41,17 @@ from app.database import (
     list_articles,
     search_articles_hybrid,
     get_article_by_id,
-    get_database_telemetry
+    get_database_telemetry,
+    get_article_by_hash,
+    insert_article
 )
 from app.processor import (
     process_and_ingest_article,
     analyze_and_process_dispatch,
     get_gemini_client,
     process_file_upload,
-    sync_public_rss_stream
+    sync_public_rss_stream,
+    analyze_image_dispatch
 )
 from app.intelligence import execute_search, generate_sitrep, synthesize_cross_intelligence
 
@@ -206,11 +214,11 @@ async def ingest_multimodal_file(file: UploadFile = File(...)):
     """
     Multimodal File Ingestion Endpoint:
     - Accepts PDF documents and tactical images (.png, .jpg, .jpeg, .webp).
+    - If Image: runs multimodal vision extraction via analyze_image_dispatch.
     - If PDF: extracts text pages with pypdf and passes to intelligence triage.
-    - If Image: runs multimodal OCR/vision extraction with Gemini 2.5 Flash / sensor heuristic.
-    - Computes deterministic SHA-256 fingerprint.
-    - Rejects exact duplicate submissions with HTTP 409 Conflict.
+    - Deduplicates via SHA-256 fingerprint (HTTP 409 Conflict).
     - Saves record to SQLite and synchronizes with FTS5 index.
+    - Sets source attribution to [IMINT SENSOR] <filename>.
     """
     file_bytes = await file.read()
     if not file_bytes:
@@ -218,9 +226,62 @@ async def ingest_multimodal_file(file: UploadFile = File(...)):
             status_code=400,
             detail=f"Uploaded file '{file.filename}' is empty (0 bytes)."
         )
+
+    fn = file.filename or "upload.bin"
+    fn_lower = fn.lower()
+    ct_lower = (file.content_type or "").lower()
+
+    is_image = any(fn_lower.endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"]) or ct_lower.startswith("image/")
+
+    if is_image:
+        content_hash = hashlib.sha256(file_bytes).hexdigest()
+        existing = get_article_by_hash(content_hash)
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Collision detected / DUPLICATE DETECTED: Image already indexed under ID {existing.id}."
+            )
+
+        extraction = analyze_image_dispatch(
+            image_bytes=file_bytes,
+            mime_type=file.content_type or "image/jpeg",
+            filename=fn
+        )
+
+        now_utc = datetime.now(timezone.utc)
+        article_id = f"AST-{uuid.uuid4().hex[:8].upper()}"
+        published_date = now_utc.strftime("%Y-%m-%d")
+        clean_stem = re.sub(r'^[0-9]+[-_]?', '', re.sub(r'\.[^.]+$', '', fn)).replace('_', ' ').replace('-', ' ').strip()
+        title = extraction.title or f"{clean_stem.title()} Tactical Reconnaissance"
+        source = f"[IMINT SENSOR] {fn}"
+
+        content = (
+            f"{extraction.executive_summary}\n\n"
+            f"Observed Platforms and Entities: {', '.join(extraction.entities)}.\n"
+            f"Tactical Keywords: {', '.join(f'#{k}' for k in extraction.keywords)}."
+        )
+
+        record = ArticleRecord(
+            id=article_id,
+            content_hash=content_hash,
+            title=title,
+            content=content,
+            source=source,
+            date=published_date,
+            created_at=now_utc.isoformat(),
+            category=extraction.category,
+            executive_summary=extraction.executive_summary,
+            threat_impact=extraction.threat_impact,
+            keywords=extraction.keywords,
+            entities=extraction.entities
+        )
+        insert_article(record)
+        logger.info(f"[IMINT SENSOR INGEST] Successfully indexed {record.id} ({record.source}) [{record.category} | {record.threat_impact}]")
+        return record
+
     return process_file_upload(
         file_bytes=file_bytes,
-        filename=file.filename or "upload.bin",
+        filename=fn,
         content_type=file.content_type
     )
 

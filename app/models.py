@@ -40,6 +40,10 @@ class ArticleIngestInput(BaseModel):
 
 class StructuredExtraction(BaseModel):
     """Structured intelligence extraction schema produced by Gemini or deterministic fallback."""
+    title: Optional[str] = Field(
+        default=None,
+        description="Concrete headline identifying the visible subject or document"
+    )
     category: CategoryEnum = Field(
         ...,
         description="Assigned defence intelligence taxonomy category"
