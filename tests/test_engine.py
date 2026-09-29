@@ -314,17 +314,19 @@ def test_static_branding_assets_and_header(client: TestClient):
     assert bg_res.status_code == 200, f"Expected 200 for bg JPG, got {bg_res.status_code}"
     assert "image/jpeg" in bg_res.headers.get("content-type", "")
 
-    # 2. Verify root page renders header with official logo, badges, and background watermark
+    # 2. Verify root page renders unified console with header, logo, badges, and background watermark
     root_res = client.get("/")
     assert root_res.status_code == 200
     html_text = root_res.text
     assert "/static/img/astra_logo.svg" in html_text
     assert "/static/img/astra_bg.jpg" in html_text
-    assert "ASTRA SENTINEL" in html_text
+    assert "ASTRA SENTINEL // TACTICAL OSINT" in html_text
     assert "BMSIT&M DEFENCE TECH" in html_text
-    assert "Tactical OSINT & Information Monitoring Workstation" in html_text
+    assert "ENGINE: GEMINI-2.5-FLASH [ONLINE]" in html_text
+    assert "TEXT & RSS DISPATCH" in html_text
+    assert "MULTIMODAL SENSORS" in html_text
+    assert "GEMINI RAG INTEL BRIEFING" in html_text
+    assert "sentinel://query" in html_text
 
-    # 3. Verify zero occurrences of Gemini in UI text
-    assert "gemini" not in html_text.lower()
 
 
