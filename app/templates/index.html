@@ -90,6 +90,32 @@
       background-color: #0d1218 !important;
     }
 
+    /* Stacking Context: keep all interactive content and cards above the fixed watermark */
+    main, section, header, footer {
+      position: relative;
+      z-index: 10;
+    }
+
+    /* Opaque backgrounds for text containers, inputs, sitrep results, and inspection dossiers */
+    .tactical-text-box,
+    #sitrepAssessment,
+    #sitrepResultContainer,
+    #modalSummary,
+    #modalContent,
+    .opaque-text-bg {
+      background-color: #070b10 !important;
+      position: relative;
+      z-index: 10;
+    }
+
+    input:not([type="file"]):not([type="checkbox"]):not([type="radio"]), 
+    textarea, 
+    select {
+      background-color: #070b10 !important;
+      position: relative;
+      z-index: 10;
+    }
+
     /* Fixed Full-Page Tactical Background Insignia */
     .tactical-bg-layer {
       position: fixed;
@@ -165,7 +191,7 @@
   <!-- ========================================================================= -->
   <!-- MAIN WORKSTATION CONTAINER                                                -->
   <!-- ========================================================================= -->
-  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 space-y-4">
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 space-y-4 relative z-10">
 
     <!-- GLOBAL TOAST NOTIFICATIONS -->
     <div id="clientErrorToast" class="hidden p-3 rounded border border-red-500 bg-red-950/90 text-red-200 text-xs font-mono flex items-center justify-between shadow-xl">
@@ -203,7 +229,7 @@
     <!-- ======================================================================= -->
     <!-- B. CONSOLIDATED ACTION & COMMAND HUB (SINGLE UNIFIED CARD)               -->
     <!-- ======================================================================= -->
-    <section class="bg-[#0d1218] border border-slate-800 rounded-xl shadow-xl overflow-hidden font-mono mb-4">
+    <section class="relative z-10 bg-[#0d1218] border border-slate-800 rounded-xl shadow-xl overflow-hidden font-mono mb-4">
       
       <!-- Command Hub Tab Switcher Bar -->
       <div class="flex flex-wrap items-center justify-between border-b border-slate-800 bg-[#0a0e14] px-4 py-2 gap-2">
@@ -428,12 +454,12 @@
               id="sitrepQueryInput" 
               type="text" 
               placeholder="e.g. Summarize our latest surveillance, counter-radar, and hypersonic capabilities..." 
-              class="flex-1 bg-[#080c10] border border-slate-800 focus:border-emerald-500 rounded px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none"
+              class="flex-1 bg-[#060a0f] border border-slate-700 focus:border-emerald-500 rounded px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none relative z-10 shadow-sm"
               onkeydown="if(event.key === 'Enter') generateSitRep()"
             />
             <select 
               id="sitrepCategorySelect" 
-              class="bg-[#080c10] border border-slate-800 focus:border-emerald-500 rounded px-2.5 py-2 text-xs text-slate-300 focus:outline-none"
+              class="bg-[#060a0f] border border-slate-700 focus:border-emerald-500 rounded px-2.5 py-2 text-xs text-slate-300 focus:outline-none relative z-10"
             >
               <option value="ALL">All Domains</option>
               <option value="Aerospace">Aerospace</option>
@@ -447,7 +473,7 @@
             <button 
               id="sitrepBtn" 
               onclick="generateSitRep()" 
-              class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold uppercase tracking-wider text-xs rounded transition-all flex items-center justify-center space-x-1.5 shadow-md shadow-emerald-950/60 whitespace-nowrap"
+              class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold uppercase tracking-wider text-xs rounded transition-all flex items-center justify-center space-x-1.5 shadow-md shadow-emerald-950/60 whitespace-nowrap relative z-10"
             >
               <span id="sitrepSpinner" class="hidden agent-spinner">⚙</span>
               <span id="sitrepLabel">[GENERATE STRATEGIC BRIEF]</span>
@@ -456,7 +482,7 @@
         </div>
 
         <!-- Synthesized Situation Briefing Ledger (Expands on completion) -->
-        <div id="sitrepResultContainer" class="hidden border border-slate-800 bg-[#0a0e14] rounded-lg p-4 space-y-3.5 mt-2">
+        <div id="sitrepResultContainer" class="hidden border border-slate-800 bg-[#0c1118] rounded-lg p-4 space-y-3.5 mt-2 relative z-10 shadow-2xl">
           
           <div class="flex items-center justify-between border-b border-slate-800 pb-2">
             <span class="text-xs font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -473,7 +499,7 @@
             <span class="text-slate-400 font-mono text-[11px] uppercase tracking-wider block font-bold mb-1">
               Executive Assessment
             </span>
-            <p id="sitrepAssessment" class="text-xs text-slate-200 leading-relaxed font-sans bg-[#080c10] p-3 rounded border border-slate-800">
+            <p id="sitrepAssessment" class="text-xs text-slate-100 leading-relaxed font-sans bg-[#060a0f] p-3.5 rounded border border-slate-700/80 shadow-inner relative z-10">
               --
             </p>
           </div>
@@ -482,7 +508,7 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
             
             <!-- Platforms / Actors -->
-            <div class="p-3 bg-[#080c10] border border-slate-800 rounded">
+            <div class="p-3 bg-[#060a0f] border border-slate-800 rounded relative z-10 shadow-sm">
               <span class="text-slate-400 font-mono text-[11px] uppercase tracking-wider block font-bold mb-1.5">
                 Connected Platforms &amp; Actors
               </span>
@@ -492,7 +518,7 @@
             </div>
 
             <!-- Timeline Developments -->
-            <div class="p-3 bg-[#080c10] border border-slate-800 rounded">
+            <div class="p-3 bg-[#060a0f] border border-slate-800 rounded relative z-10 shadow-sm">
               <span class="text-slate-400 font-mono text-[11px] uppercase tracking-wider block font-bold mb-1.5">
                 Chronological Developments
               </span>
@@ -504,7 +530,7 @@
           </div>
 
           <!-- Grounded Sources -->
-          <div>
+          <div class="p-3 bg-[#060a0f] border border-slate-800 rounded relative z-10 shadow-sm">
             <span class="text-slate-400 font-mono text-[11px] uppercase tracking-wider block font-bold mb-1">
               Grounded Source Citations
             </span>
@@ -522,10 +548,10 @@
     <!-- ======================================================================= -->
     <!-- C. THE FILTER & INTELLIGENCE WIRE                                        -->
     <!-- ======================================================================= -->
-    <section class="space-y-3 font-mono">
+    <section class="space-y-3 font-mono relative z-10">
       
       <!-- Search & Filter Strip -->
-      <div class="p-3 bg-[#0d1218] border border-slate-800 rounded-xl space-y-2.5 shadow-xl mb-3">
+      <div class="p-3 bg-[#0d1218] border border-slate-800 rounded-xl space-y-2.5 shadow-xl mb-3 relative z-10">
         
         <!-- Filter Ribbon: Categories & Horizons -->
         <div class="flex flex-wrap items-center justify-between border-b border-slate-800 pb-2 gap-2">
@@ -554,7 +580,7 @@
         </div>
 
         <!-- [TACTICAL RECON SEARCH] Command Bar -->
-        <div class="border border-slate-800 bg-[#0b0f14] p-2.5 flex items-center gap-3 rounded-lg">
+        <div class="border border-slate-800 bg-[#0a0f16] p-2.5 flex items-center gap-3 rounded-lg relative z-10">
           <div class="flex items-center gap-1.5 font-mono text-[11px] font-bold text-emerald-400 whitespace-nowrap">
             <span class="inline-block w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
             <span>[TACTICAL RECON SEARCH]</span>
@@ -564,11 +590,11 @@
               type="text" 
               id="recon-search-input" 
               placeholder="Type military acronym, platform (UAV, AESA, Torpedo), or keyword..." 
-              class="w-full bg-[#121820] border border-slate-700/80 px-3 py-1.5 font-mono text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 rounded"
+              class="w-full bg-[#060a0f] border border-slate-700/80 px-3 py-1.5 font-mono text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 rounded relative z-10"
             />
           </div>
-          <button onclick="clearSearch()" class="font-mono text-[10px] text-slate-400 hover:text-white border border-slate-700 px-2 py-1 rounded transition-colors">[CLEAR]</button>
-          <div id="filterCountReadout" class="text-slate-400 font-mono text-[10px] hidden sm:block whitespace-nowrap">
+          <button onclick="clearSearch()" class="font-mono text-[10px] text-slate-400 hover:text-white border border-slate-700 px-2 py-1 rounded transition-colors relative z-10">[CLEAR]</button>
+          <div id="filterCountReadout" class="text-slate-400 font-mono text-[10px] hidden sm:block whitespace-nowrap relative z-10">
             Indexing...
           </div>
         </div>
@@ -1157,7 +1183,7 @@
         const shortHash = (art.content_hash || '').substring(0, 8);
 
         return `
-          <div class="p-4 bg-[#0d1218] border border-slate-800 hover:border-slate-700 rounded-xl space-y-2.5 transition-all shadow-md group">
+          <div class="p-4 bg-[#0d1218] border border-slate-800 hover:border-slate-700 rounded-xl space-y-2.5 transition-all shadow-md group relative z-10">
             
             <!-- Card Header: Date, Category, Threat Tag -->
             <div class="flex flex-wrap items-center justify-between text-xs gap-2">
@@ -1184,7 +1210,7 @@
             </h3>
 
             <!-- 2-Sentence Summary -->
-            <p class="text-xs text-slate-300 font-sans leading-relaxed">
+            <p class="text-xs text-slate-200 font-sans leading-relaxed bg-[#070b10] p-2.5 rounded border border-slate-800/80 relative z-10">
               ${escapeHtml(art.executive_summary || (art.content ? art.content.substring(0, 160) + '...' : ''))}
             </p>
 
