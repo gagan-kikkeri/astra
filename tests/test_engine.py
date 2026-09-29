@@ -298,3 +298,27 @@ def test_sync_live_public_osint_stream(client: TestClient):
     assert "feed_source" in data
     assert "message" in data
     assert isinstance(data["articles"], list)
+
+
+def test_static_branding_assets_and_header(client: TestClient):
+    """
+    Tests that static branding assets are served at /static/img/astra_logo.svg
+    and that the index page references the official logo without exposing 'Gemini' in UI.
+    """
+    # 1. Verify static asset exists and is served
+    logo_res = client.get("/static/img/astra_logo.svg")
+    assert logo_res.status_code == 200, f"Expected 200 for logo SVG, got {logo_res.status_code}"
+    assert "image/svg+xml" in logo_res.headers.get("content-type", "") or "<svg" in logo_res.text
+
+    # 2. Verify root page renders header with official logo and badges
+    root_res = client.get("/")
+    assert root_res.status_code == 200
+    html_text = root_res.text
+    assert "/static/img/astra_logo.svg" in html_text
+    assert "ASTRA SENTINEL" in html_text
+    assert "BMSIT&M DEFENCE TECH" in html_text
+    assert "Tactical OSINT & Information Monitoring Workstation" in html_text
+
+    # 3. Verify zero occurrences of Gemini in UI text
+    assert "gemini" not in html_text.lower()
+
