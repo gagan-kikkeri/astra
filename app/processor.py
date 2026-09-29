@@ -811,6 +811,8 @@ def sync_public_rss_stream(max_entries: int = 3) -> SyncFeedResponse:
     """
     feed_sources = [
         ("Defense News", "https://www.defensenews.com/arc/outboundfeeds/rss/"),
+        ("Naval News", "https://www.navalnews.com/feed/"),
+        ("PIB Defence Press Releases", "https://pib.gov.in/RssMain.aspx?ModId=6"),
         ("UK Defence Journal", "https://ukdefencejournal.org.uk/feed/"),
         ("USNI News", "https://news.usni.org/feed")
     ]
@@ -822,7 +824,8 @@ def sync_public_rss_stream(max_entries: int = 3) -> SyncFeedResponse:
         try:
             resp = httpx.get(
                 url,
-                timeout=8.0,
+                timeout=10.0,
+                follow_redirects=True,
                 headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ASTRA-Sentinel/2.5"}
             )
             if resp.status_code == 200 and resp.text:
