@@ -34,6 +34,7 @@ from app.database import (
     init_db,
     get_db_connection,
     list_articles,
+    search_articles_hybrid,
     get_article_by_id,
     get_database_telemetry
 )
@@ -249,16 +250,27 @@ async def analyze_dispatch(payload: AnalyzeInput):
 @app.get("/api/articles", response_model=List[ArticleRecord])
 @app.get("/articles", response_model=List[ArticleRecord])
 async def get_articles(
-    category: Optional[str] = Query(default=None, description="Optional category filter (ALL, Aerospace, etc.)"),
-    date_filter: Optional[str] = Query(default=None, description="Horizon filter (ALL, 24H, 7D, 30D)"),
+    q: Optional[str] = Query(default=None, description="Search query string or military acronym"),
+    category: Optional[str] = Query(default="ALL", description="Optional category filter (ALL, Aerospace, etc.)"),
+    date_filter: Optional[str] = Query(default="ALL", description="Horizon filter (ALL, 24H, 7D, 30D)"),
     start_date: Optional[str] = Query(default=None, description="ISO Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(default=None, description="ISO End date (YYYY-MM-DD)"),
     limit: int = Query(default=50, ge=1, le=100)
 ):
     """
-    Returns chronologically ordered dispatches supporting dual category
-    and date-horizon / ISO date-range parameters.
+    Returns chronologically ordered or FTS5/LIKE matched dispatches supporting
+    text search (q), dual category, and date-horizon / ISO date-range parameters.
     """
+    if q and q.strip():
+        articles, _ = search_articles_hybrid(
+            query_str=q.strip(),
+            category=category,
+            date_filter=date_filter,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit
+        )
+        return articles
     return list_articles(
         category=category,
         date_filter=date_filter,

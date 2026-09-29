@@ -326,7 +326,7 @@ def test_static_branding_assets_and_header(client: TestClient):
     assert "TEXT & RSS DISPATCH" in html_text
     assert "MULTIMODAL SENSORS" in html_text
     assert "ASTRA RAG INTEL BRIEFING" in html_text
-    assert "sentinel://query" in html_text
+    assert "[TACTICAL RECON SEARCH]" in html_text
 
     # 3. Strictly verify zero occurrences of Gemini anywhere in the frontend
     assert "gemini" not in html_text.lower()

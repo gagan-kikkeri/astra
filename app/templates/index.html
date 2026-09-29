@@ -553,20 +553,23 @@
 
         </div>
 
-        <!-- Real-Time Command Bar -->
-        <div class="flex flex-wrap items-center justify-between text-xs pt-0.5 gap-2">
-          <div class="flex items-center space-x-2 flex-1 min-w-[280px]">
-            <span class="text-emerald-400 font-mono font-bold text-xs select-none">sentinel://query &gt;</span>
+        <!-- [TACTICAL RECON SEARCH] Command Bar -->
+        <div class="border border-slate-800 bg-[#0b0f14] p-2.5 flex items-center gap-3 rounded-lg">
+          <div class="flex items-center gap-1.5 font-mono text-[11px] font-bold text-emerald-400 whitespace-nowrap">
+            <span class="inline-block w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+            <span>[TACTICAL RECON SEARCH]</span>
+          </div>
+          <div class="relative flex-1">
             <input 
-              id="wireSearchInput" 
               type="text" 
-              placeholder="Search FTS5 acronyms (e.g. UAV, AESA, DRDO, Mach, GPI)..." 
-              oninput="triggerSearchAndFilter()"
-              class="w-full bg-[#080c10] border border-slate-800 focus:border-emerald-500 rounded px-2.5 py-1 text-xs text-white placeholder-slate-500 focus:outline-none"
+              id="recon-search-input" 
+              placeholder="Type military acronym, platform (UAV, AESA, Torpedo), or keyword..." 
+              class="w-full bg-[#121820] border border-slate-700/80 px-3 py-1.5 font-mono text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 rounded"
             />
           </div>
-          <div id="filterCountReadout" class="text-slate-400 font-mono text-[11px]">
-            Indexing dispatches...
+          <button onclick="clearSearch()" class="font-mono text-[10px] text-slate-400 hover:text-white border border-slate-700 px-2 py-1 rounded transition-colors">[CLEAR]</button>
+          <div id="filterCountReadout" class="text-slate-400 font-mono text-[10px] hidden sm:block whitespace-nowrap">
+            Indexing...
           </div>
         </div>
 
@@ -656,6 +659,9 @@
 
     // Initialization
     document.addEventListener('DOMContentLoaded', () => {
+      window.activeCategory = 'ALL';
+      window.activeHorizon = 'ALL';
+      initSearchListener();
       // Set default input date to today
       const dateInput = document.getElementById('inputDate');
       if (dateInput) {
@@ -705,6 +711,7 @@
     // 3. Category & Date Horizon Filtering
     function setCategory(cat) {
       currentCategory = cat;
+      window.activeCategory = cat;
       document.querySelectorAll('.cat-pill').forEach(btn => {
         if (btn.dataset.category === cat) {
           btn.className = 'cat-pill px-2 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold';
@@ -717,6 +724,7 @@
 
     function setDateFilter(horizon) {
       currentDateFilter = horizon;
+      window.activeHorizon = horizon;
       document.querySelectorAll('.date-pill').forEach(btn => {
         if (btn.id === `date-${horizon}`) {
           btn.className = 'date-pill px-1.5 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold';
@@ -727,52 +735,56 @@
       triggerSearchAndFilter();
     }
 
-    // 4. Real-time Search and Filter Dispatcher
-    function triggerSearchAndFilter() {
-      clearTimeout(searchDebounceTimer);
-      searchDebounceTimer = setTimeout(async () => {
-        const query = (document.getElementById('wireSearchInput')?.value || '').trim();
-        const readout = document.getElementById('filterCountReadout');
-        const startTime = performance.now();
+    // 4. Live Recon Search Listener & Dispatcher
+    let searchDebounceTimer = null;
 
-        try {
-          let url = '/api/articles?';
-          const params = new URLSearchParams();
-          if (currentCategory && currentCategory !== 'ALL') params.append('category', currentCategory);
-          if (currentDateFilter && currentDateFilter !== 'ALL') params.append('date_filter', currentDateFilter);
-
-          if (query) {
-            params.append('q', query);
-            url = `/api/search?${params.toString()}`;
-            const res = await fetch(url);
-            if (res.ok) {
-              const data = await res.json();
-              const elapsed = (performance.now() - startTime).toFixed(1);
-              renderDispatches(data.results || []);
-              if (readout) {
-                readout.textContent = `Showing ${(data.results || []).length} matches | Latency: ${elapsed}ms`;
-              }
-              return;
-            }
-          }
-
-          // Default article retrieval
-          url = `/api/articles?${params.toString()}`;
-          const res = await fetch(url);
-          if (res.ok) {
-            const articles = await res.json();
-            const elapsed = (performance.now() - startTime).toFixed(1);
-            articlesCache = articles;
-            renderDispatches(articles);
-            if (readout) {
-              readout.textContent = `Showing ${articles.length} dispatches | Latency: ${elapsed}ms`;
-            }
-          }
-        } catch (err) {
-          console.error('Filter execution failed:', err);
-        }
-      }, 200);
+    function initSearchListener() {
+      const searchInput = document.getElementById('recon-search-input');
+      if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+          clearTimeout(searchDebounceTimer);
+          searchDebounceTimer = setTimeout(() => {
+            triggerSearchAndFilter();
+          }, 200);
+        });
+      }
     }
+
+    function clearSearch() {
+      const input = document.getElementById('recon-search-input');
+      if (input) input.value = '';
+      triggerSearchAndFilter();
+    }
+
+    async function triggerSearchAndFilter() {
+      const searchVal = document.getElementById('recon-search-input') ? document.getElementById('recon-search-input').value.trim() : '';
+      const categoryVal = window.activeCategory || currentCategory || 'ALL';
+      const horizonVal = window.activeHorizon || currentDateFilter || 'ALL';
+      const readout = document.getElementById('filterCountReadout');
+      const startTime = performance.now();
+
+      const params = new URLSearchParams({
+        q: searchVal,
+        category: categoryVal,
+        date_filter: horizonVal
+      });
+
+      try {
+        const response = await fetch(`/api/articles?${params.toString()}`);
+        if (!response.ok) throw new Error("Search query failed");
+        const data = await response.json();
+        articlesCache = data;
+        renderFeed(data);
+        if (readout) {
+          const elapsed = (performance.now() - startTime).toFixed(1);
+          readout.textContent = `Showing ${data.length} matches | Latency: ${elapsed}ms`;
+        }
+      } catch (err) {
+        console.error("Search error:", err);
+      }
+    }
+
+    const renderFeed = renderDispatches;
 
     // 5. Initial Dispatch Fetch
     async function fetchDispatches() {

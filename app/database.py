@@ -273,9 +273,12 @@ def search_articles_hybrid(
 
         # Attempt FTS5 query with BM25 ranking
         try:
-            tokens = [re.sub(r'[^a-zA-Z0-9_\-]', '', w) for w in clean_query.split()]
-            tokens = [t for t in tokens if len(t) > 1]
-            fts_match_expr = " OR ".join(f'"{t}"' for t in tokens) if tokens else f'"{clean_query}"'
+            clean_fts = "".join(c for c in clean_query if c.isalnum() or c in (" ", "-", "_")).strip()
+            tokens = [w for w in clean_fts.split() if len(w) > 1]
+            if tokens:
+                fts_match_expr = " OR ".join(f'{t}*' for t in tokens)
+            else:
+                fts_match_expr = f'{clean_fts}*' if clean_fts else f'"{clean_query}"'
 
             fts_conditions = ["articles_fts MATCH ?"]
             fts_params = [fts_match_expr]
