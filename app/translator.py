@@ -107,7 +107,6 @@ def _fallback_translate_single(text: str, target_lang: str) -> str:
     High-fidelity deterministic fallback translation for military dispatches
     when Gemini API key is absent or offline.
     Preserves military platforms, acronyms, and technical parameters intact.
-    Never outputs repetitive generic placeholders.
     """
     if not text or not text.strip():
         return text
@@ -151,74 +150,54 @@ def _fallback_translate_single(text: str, target_lang: str) -> str:
     if key in known_translations:
         return known_translations[key]
 
-    # If text already contains Indic script matching target, return directly
-    if tgt == "HI" and re.search(r'[\u0900-\u097F]', text):
-        return text
+    # If text is already in the target script, return it directly
     if tgt == "KN" and re.search(r'[\u0C80-\u0CFF]', text):
+        return text
+    if tgt == "HI" and re.search(r'[\u0900-\u097F]', text):
         return text
     if tgt == "TE" and re.search(r'[\u0C00-\u0C7F]', text):
         return text
     if tgt == "TA" and re.search(r'[\u0B80-\u0BFF]', text):
         return text
 
-    # Common defence terminology dictionary replacements (preserving real dates, citations, and platforms)
-    glossary = {
+    # Common defence phrases
+    phrase_maps = {
         "KN": [
-            ("Technical evaluation for", "ತಾಂತ್ರಿಕ ಮೌಲ್ಯಮಾಪನ:"),
-            ("Initial technical evaluation and armor inspection completed for", "ಪ್ರಾಥಮಿಕ ತಾಂತ್ರಿಕ ಮೌಲ್ಯಮಾಪನ ಮತ್ತು ರಕ್ಷಾಕವಚ ಪರಿಶೀಲನೆ ಪೂರ್ಣಗೊಂಡಿದೆ:"),
-            ("Mobility and transmission stress assessment logged across tactical polygon", "ಚಲನಶೀಲತೆ ಮತ್ತು ಟ್ರಾನ್ಸ್‌ಮಿಷನ್ ಒತ್ತಡ ಮೌಲ್ಯಮಾಪನ ದಾಖಲಿಸಲಾಗಿದೆ"),
-            ("Regarding the operational inquiry on", "ಕಾರ್ಯಾಚರಣೆಯ ವಿಚಾರಣೆ ಕುರಿತು:"),
-            ("Regarding the operational outcome:", "ಕಾರ್ಯಾಚರಣೆಯ ಫಲಿತಾಂಶ:"),
-            ("Regarding the operational timeline:", "ಕಾರ್ಯಾಚರಣೆಯ ಕಾಲಾನುಕ್ರಮ:"),
-            ("Regarding the operational inquiry:", "ಕಾರ್ಯಾಚರಣೆಯ ವಿಚಾರಣೆ:"),
-            ("Based on indexed dispatch", "ದಾಖಲಿತ ವರದಿಯ ಆಧಾರದ ಮೇಲೆ"),
-            ("Correlated intelligence in dispatch", "ಸಂಬಂಧಿತ ಗುಪ್ತಚರ ದಾಖಲೆ"),
-            ("confirms active developments involving", "ಸಕ್ರಿಯ ಬೆಳವಣಿಗೆಗಳನ್ನು ದೃಢಪಡಿಸುತ್ತದೆ:"),
-            ("Primary platform observations:", "ಪ್ರಮುಖ ವೇದಿಕೆ ವೀಕ್ಷಣೆಗಳು:"),
-            ("Identified entities and assets include", "ಗುರುತಿಸಲಾದ ಘಟಕಗಳು ಮತ್ತು ಸ್ವತ್ತುಗಳು:"),
-            ("successfully deployed and tested", "ಯಶಸ್ವಿಯಾಗಿ ನಿಯೋಜಿಸಲಾಗಿದೆ ಮತ್ತು ಪರೀಕ್ಷಿಸಲಾಗಿದೆ"),
-            ("deployed for operational air defence", "ಕಾರ್ಯಾಚರಣಾ ವಾಯು ರಕ್ಷಣೆಗಾಗಿ ನಿಯೋಜಿಸಲಾಗಿದೆ"),
-            ("air defense", "ವಾಯು ರಕ್ಷಣೆ"),
-            ("exercise", "ಅಭ್ಯಾಸ"),
-            ("missile", "ಕ್ಷಿಪಣಿ"),
-            ("frigate", "ಫ್ರಿಗೇಟ್"),
-            ("submarine", "ಜಲಾಂತರ್ಗಾಮಿ")
+            ("Regarding the operational inquiry", "ಕಾರ್ಯಾಚರಣೆಯ ತನಿಖೆಗೆ ಸಂಬಂಧಿಸಿದಂತೆ"),
+            ("Analysis of indexed records indicates key operational constraints", "ದಾಖಲೆಗಳ ವಿಶ್ಲೇಷಣೆಯು ಪ್ರಮುಖ ಕಾರ್ಯಾಚರಣೆಯ ನ್ಯೂನತೆಗಳನ್ನು ಸೂಚಿಸುತ್ತದೆ"),
+            ("Initial technical evaluation and armor inspection completed", "ಪ್ರಾಥಮಿಕ ತಾಂತ್ರಿಕ ಮೌಲ್ಯಮಾಪನ ಮತ್ತು ರಕ್ಷಾಕವಚ ಪರಿಶೀಲನೆ ಪೂರ್ಣಗೊಂಡಿದೆ"),
+            ("Mobility and transmission stress assessment logged", "ಚಲನಶೀಲತೆ ಮತ್ತು ಟ್ರಾನ್ಸ್‌ಮಿಷನ್ ಒತ್ತಡ ಮೌಲ್ಯಮಾಪನ ದಾಖಲಿಸಲಾಗಿದೆ"),
+            ("Technical defect and limitation analysis", "ತಾಂತ್ರಿಕ ದೋಷ ಮತ್ತು ಮಿತಿಗಳ ವಿಶ್ಲೇಷಣೆ"),
+            ("Operational intelligence analysis", "ಕಾರ್ಯಾಚರಣೆಯ ಗುಪ್ತಚರ ವಿಶ್ಲೇಷಣೆ"),
+            ("confirms active developments", "ಸಕ್ರಿಯ ಬೆಳವಣಿಗೆಗಳನ್ನು ದೃಢಪಡಿಸುತ್ತದೆ"),
+            ("Primary platform observations", "ಪ್ರಮುಖ ಪ್ಲಾಟ್‌ಫಾರ್ಮ್ ವೀಕ್ಷಣೆಗಳು"),
+            ("Ground radar tracking stations", "ನೆಲದ ರಾಡಾರ್ ಟ್ರ್ಯಾಕಿಂಗ್ ಕೇಂದ್ರಗಳು"),
+            ("successfully validated", "ಯಶಸ್ವಿಯಾಗಿ ಮೌಲ್ಯೀಕರಿಸಲಾಗಿದೆ"),
+            ("air defence", "ವಾಯು ರಕ್ಷಣೆ"),
+            ("Indian Navy", "ಭಾರತೀಯ ನೌಕಾಪಡೆ"),
+            ("Indian Air Force", "ಭಾರತೀಯ ವಾಯುಪಡೆ")
         ],
         "HI": [
-            ("Technical evaluation for", "तकनीकी मूल्यांकन:"),
-            ("Initial technical evaluation and armor inspection completed for", "प्रारंभिक तकनीकी मूल्यांकन और कवच निरीक्षण पूर्ण हुआ:"),
-            ("Mobility and transmission stress assessment logged across tactical polygon", "गतिशीलता और ट्रांसमिशन तनाव मूल्यांकन दर्ज किया गया"),
-            ("Regarding the operational inquiry on", "परिचालन पूछताछ के संबंध में:"),
-            ("Regarding the operational outcome:", "परिचालन परिणाम:"),
-            ("Regarding the operational timeline:", "परिचालन समयरेखा:"),
-            ("Regarding the operational inquiry:", "परिचालन पूछताछ:"),
-            ("Based on indexed dispatch", "अनुक्रमित प्रेषण के आधार पर"),
-            ("Correlated intelligence in dispatch", "संबंधित खुफिया रिपोर्ट"),
-            ("confirms active developments involving", "सक्रिय घटनाक्रम की पुष्टि करता है:"),
-            ("Primary platform observations:", "प्राथमिक अवलोकन:"),
-            ("Identified entities and assets include", "पहचाने गए घटक और संपत्तियां:"),
-            ("successfully deployed and tested", "सफलतापूर्वक तैनात और परीक्षण किया गया"),
-            ("deployed for operational air defence", "परिचालन वायु रक्षा के लिए तैनात"),
-            ("air defense", "वायु रक्षा"),
-            ("exercise", "अभ्यास"),
-            ("missile", "मिसाइल"),
-            ("frigate", "फ्रिगेट"),
-            ("submarine", "पनडुब्बी")
-        ],
-        "TE": [
-            ("Technical evaluation for", "సాంకేతిక మూల్యాంకనం:"),
-            ("Regarding the operational inquiry on", "కార్యాచరణ విచారణకు సంబంధించి:"),
-            ("Regarding the operational outcome:", "కార్యాచరణ ఫలితం:"),
-            ("Regarding the operational timeline:", "కార్యాచరణ కాలక్రమం:"),
-            ("successfully deployed and tested", "విజయవంతంగా మోహరించబడింది మరియు పరీక్షించబడింది"),
-            ("deployed for operational air defence", "కార్యాచరణ వైమానిక రక్షణ కోసం మోహరించబడింది")
+            ("Regarding the operational inquiry", "परिचालन पूछताछ के संबंध में"),
+            ("Analysis of indexed records indicates key operational constraints", "रिकॉर्ड के विश्लेषण से मुख्य परिचालन कमियों का संकेत मिलता है"),
+            ("Initial technical evaluation and armor inspection completed", "प्रारंभिक तकनीकी मूल्यांकन और कवच निरीक्षण पूर्ण हुआ"),
+            ("Mobility and transmission stress assessment logged", "गतिशीलता और ट्रांसमिशन तनाव मूल्यांकन दर्ज किया गया"),
+            ("Technical defect and limitation analysis", "तकनीकी दोष और सीमा विश्लेषण"),
+            ("Operational intelligence analysis", "परिचालन खुफिया विश्लेषण"),
+            ("confirms active developments", "सक्रिय विकास की पुष्टि करता है"),
+            ("Primary platform observations", "प्रमुख प्लेटफॉर्म अवलोकन"),
+            ("Ground radar tracking stations", "ग्राउंड रडार ट्रैकिंग स्टेशन"),
+            ("successfully validated", "सफलतापूर्वक मान्य किया गया"),
+            ("air defence", "वायु रक्षा"),
+            ("Indian Navy", "भारतीय नौसेना"),
+            ("Indian Air Force", "भारतीय वायु सेना")
         ]
     }
 
-    if tgt in glossary:
+    if tgt in phrase_maps:
         res = text
-        for en_term, target_term in glossary[tgt]:
-            res = res.replace(en_term, target_term)
+        for en_p, tr_p in phrase_maps[tgt]:
+            res = res.replace(en_p, tr_p)
         return res
 
     return text

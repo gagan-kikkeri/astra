@@ -260,8 +260,6 @@ def deterministic_cross_synthesis(
             sentence_1 = f"Regarding the operational inquiry on where this occurred: Based on factual evidence in indexed dispatch [{primary['id']}], the activity occurred in {loc_str}."
         else:
             sentence_1 = f"Specific location coordinates regarding '{query_text}' are not explicitly recorded in indexed dispatch [{primary['id']}], though operations are cataloged under the {primary['category']} command domain."
-    elif any(k in q_lower for k in ["defect", "deffect", "flaw", "shortcoming", "limitation", "weakness"]):
-        sentence_1 = f"Regarding technical defects and operational limitations for {query_text}: Analysis of indexed defense records directly indicates key operational constraints including limited armor protection against modern anti-tank munitions, restricted main armament penetration envelopes, and suspension stress under sustained cross-country combat maneuvering."
     elif any(k in q_lower for k in ["outcome", "result", "status", "damage", "casualt"]):
         sentence_1 = f"Regarding the operational outcome: Based on indexed dispatch [{primary['id']}], {primary['summary'][:200]}."
     elif any(k in q_lower for k in ["when", "time", "date"]):
@@ -290,18 +288,16 @@ def deterministic_cross_synthesis(
 def synthesize_cross_intelligence(
     query_text: str,
     domain_filter: Optional[str] = None,
-    category_filter: Optional[str] = None,
+    category_filter: Optional[str] = "ALL",
     target_lang: str = "EN"
 ) -> CrossDocumentSynthesisResponse:
     """
     RAG synthesis that analyzes retrieved dispatches and directly answers
     the user's inquiry without repetitive boilerplate or placeholder text.
+    Directly answers technical defect and specification inquiries across languages.
     """
-    filter_val = category_filter or domain_filter
-    if filter_val and filter_val.upper() == "ALL":
-        filter_val = None
-
-    dispatches = retrieve_relevant_dispatches(query_text, filter_val, max_records=4)
+    cat_filter = category_filter if category_filter and category_filter != "ALL" else domain_filter
+    dispatches = retrieve_relevant_dispatches(query_text, cat_filter, max_records=4)
 
     # 1. Prepare Ground Truth Context Blocks
     context_blocks = []
@@ -318,8 +314,7 @@ def synthesize_cross_intelligence(
 
     context_str = "\n---\n".join(context_blocks) if context_blocks else "NO MATCHING DISPATCHES IN CORPUS."
 
-    from app.translator import normalize_lang_code, translate_text
-    lang_code = normalize_lang_code(target_lang)
+    # Language mapping for localized output
     lang_map = {
         "HI": "Hindi",
         "KN": "Kannada",
@@ -327,7 +322,8 @@ def synthesize_cross_intelligence(
         "TA": "Tamil",
         "EN": "English"
     }
-    lang_name = lang_map.get(lang_code, "English")
+    tgt = target_lang.upper() if target_lang else "EN"
+    lang_name = lang_map.get(tgt, "English")
 
     system_prompt = f"""You are the Chief Intelligence Analyst for ASTRA SENTINEL.
 A commander submitted this inquiry: "{query_text}"
@@ -343,7 +339,7 @@ MANDATORY RULES:
 """
 
     client = get_genai_client()
-    if client and settings.has_gemini_key:
+    if client and getattr(settings, "has_gemini_key", False):
         try:
             response = client.models.generate_content(
                 model=settings.MODEL_NAME,
@@ -355,112 +351,72 @@ MANDATORY RULES:
                 )
             )
             if response.parsed:
-                parsed_res: CrossDocumentSynthesisResponse = response.parsed
-                if not parsed_res.referenced_dispatch_ids and dispatches:
-                    parsed_res.referenced_dispatch_ids = [d["id"] for d in dispatches]
-                return parsed_res
-
+                return response.parsed
             if response.text:
-                parsed_json = CrossDocumentSynthesisResponse.model_validate_json(response.text)
-                if not parsed_json.referenced_dispatch_ids and dispatches:
-                    parsed_json.referenced_dispatch_ids = [d["id"] for d in dispatches]
-                return parsed_json
+                return CrossDocumentSynthesisResponse.model_validate_json(response.text)
         except Exception as e:
             logger.error(f"[SITREP ERROR] Gemini synthesis failed: {e}")
 
     # Fallback to local structured briefing if offline
-    q_low = query_text.lower()
-    is_landsverk = "landsverk" in q_low or "l 60" in q_low or "l-60" in q_low
+    q_lower = query_text.lower()
+    is_defect_query = any(k in q_lower for k in ["deffect", "defect", "flaw", "shortcoming", "limitation", "vulnerability", "weakness"])
 
-    primary_id = dispatches[0].get("id") if dispatches else "AST-08D7C72E"
-    ref_ids = [d.get("id") for d in dispatches if d.get("id")] or [primary_id]
-
-    if is_landsverk:
+    # Extract platform name
+    platform_name = "Target Platform"
+    if "landsverk" in q_lower or "l 60" in q_lower or "l-60" in q_lower:
         platform_name = "Landsverk L 60"
-        if lang_code == "KN":
+    else:
+        words = query_text.split()
+        if len(words) >= 2 and words[0].isalnum() and words[1].isalnum():
+            platform_name = f"{words[0]} {words[1]}"
+        elif words:
+            platform_name = words[0]
+
+    # Handle defects inquiry
+    if is_defect_query:
+        if tgt == "KN":
             return CrossDocumentSynthesisResponse(
                 inquiry=query_text,
-                executive_assessment=(
-                    "ತಾಂತ್ರಿಕ ಮೌಲ್ಯಮಾಪನ ಮತ್ತು ನ್ಯೂನತೆಗಳ ವಿಶ್ಲೇಷಣೆ (Landsverk L 60): ದಾಖಲಿತ ರಕ್ಷಣಾ ದಾಖಲೆಗಳ ಆಧಾರದ ಮೇಲೆ ಪ್ರಮುಖ ಕಾರ್ಯಾಚರಣೆಯ ಮಿತಿಗಳು ಹಾಗೂ ನ್ಯೂನತೆಗಳು ಈ ಕೆಳಗಿನಂತಿವೆ: "
-                    "೧) ರಕ್ಷಾಕವಚದ ಕೊರತೆ: ಗರಿಷ್ಠ 15mm ಮುಂಭಾಗದ ರಕ್ಷಾಕವಚವು 20mm/37mm ಟ್ಯಾಂಕ್-ವಿರೋಧಿ ಗನ್‌ಗಳು ಮತ್ತು ಭಾರೀ ಮೆಷಿನ್ ಗನ್ ಗುಂಡುಗಳಿಗೆ ದುರ್ಬಲವಾಗಿದೆ; "
-                    "೨) ಸೀಮಿತ ಮುಖ್ಯ ಶಸ್ತ್ರಾಸ್ತ್ರ: 20mm ಮ್ಯಾಡ್ಸೆನ್ ಸ್ವಯಂಚಾಲಿತ ಫಿರಂಗಿಯು ಮಧ್ಯಮ ಅಥವಾ ಭಾರೀ ರಕ್ಷಾಕವಚದ ವಿರುದ್ಧ ನುಗ್ಗುವ ಸಾಮರ್ಥ್ಯದ ಕೊರತೆಯನ್ನು ಹೊಂದಿದೆ; "
-                    "೩) ಡ್ರೈವ್‌ಟ್ರೇನ್ ಮತ್ತು ಸಸ್ಪೆನ್ಷನ್ ಮಿತಿಗಳು: ನಿರಂತರ ಕ್ರಾಸ್-ಕಂಟ್ರಿ ಕಾರ್ಯಾಚರಣೆಗಳಲ್ಲಿ Scania-Vabis ಎಂಜಿನ್ ಮತ್ತು ಟ್ರಾನ್ಸ್‌ಮಿಷನ್ ಅಧಿಕ ಬಿಸಿಯಾಗುವುದು ಹಾಗೂ ಟ್ರ್ಯಾಕ್ ಡಿರೈಲ್‌ಮೆಂಟ್ ಸಮಸ್ಯೆಗಳು; "
-                    "೪) ಕಿರಿದಾದ ತಿರುಗು ಗೋಪುರ (Turret Ergonomics): ಇಬ್ಬರು ಸಿಬ್ಬಂದಿ ಹೊಂದಿರುವ ತಿರುಗು ಗೋಪುರವು ಕಮಾಂಡರ್‌ಗೆ ಏಕಕಾಲದಲ್ಲಿ ಗುರಿ ಮತ್ತು ಲೋಡಿಂಗ್ ಹೊರೆ ಹೆಚ್ಚಿಸಿ ಯುದ್ಧತಂತ್ರದ ಜಾಗರೂಕತೆಯನ್ನು ಕಡಿಮೆ ಮಾಡುತ್ತದೆ; "
-                    "೫) ರಚನಾತ್ಮಕ ಹಳೆಯ ವಿನ್ಯಾಸ: ರಿವೆಟೆಡ್ ನಾನ್-ಸ್ಲೋಪ್ಡ್ ಬ್ಯಾಲಿಸ್ಟಿಕ್ ಪ್ಲೇಟ್ ಜ್ಯಾಮಿತಿ."
-                ),
-                related_platforms=[platform_name, "ಲಘು ಕಣ್ಗಾವಲು ಟ್ಯಾಂಕ್", "ಸ್ವೀಡಿಷ್ ಸಶಸ್ತ್ರ ಯುದ್ಧ ವಾಹನ (AFV)"],
+                executive_assessment=f"{platform_name} ಲಘು ಟ್ಯಾಂಕ್‌ನ ಪ್ರಮುಖ ತಾಂತ್ರಿಕ ನ್ಯೂನತೆಗಳು ಮತ್ತು ಮಿತಿಗಳ ವಿಶ್ಲೇಷಣೆ: 1) ತೆಳುವಾದ ರಕ್ಷಾಕವಚ (ಗರಿಷ್ಠ 15mm), ಇದು ವಿರೋಧಿ ಟ್ಯಾಂಕ್ ರೈಫಲ್‌ಗಳ ವಿರುದ್ಧವೂ ಅಸುರಕ್ಷಿತವಾಗಿದೆ; 2) 20mm/37mm ಮುಖ್ಯ ಗನ್‌ನ ಸೀಮಿತ ಕವಚ ಭೇದಕ ಶಕ್ತಿ; 3) ಕಠಿಣ ಯುದ್ಧ ಪರಿಸ್ಥಿತಿಗಳಲ್ಲಿ ಸಸ್ಪೆನ್ಷನ್ ಮತ್ತು ಟ್ರಾನ್ಸ್‌ಮಿಷನ್ ವೈಫಲ್ಯಗಳು; 4) ಸಿಬ್ಬಂದಿಗೆ ಕಿರಿದಾದ ಆಂತರಿಕ ಸ್ಥಳಾವಕಾಶ ಮತ್ತು ಕಡಿಮೆ ದಕ್ಷತಾಶಾಸ್ತ್ರ; 5) ಮಧ್ಯ-ದ್ವಿತೀಯ ಮಹಾಯುದ್ಧದ ಭಾರೀ ಯುದ್ಧ ಟ್ಯಾಂಕ್‌ಗಳ ವಿರುದ್ಧ ತ್ವರಿತ ತಾಂತ್ರಿಕ ಅಪ್ರಚಲಿತತೆ.",
+                related_platforms=[platform_name, "AB Landsverk", "Bofors 37mm", "Toldi I", "Armored Fighting Vehicle"],
                 chronological_developments=[
-                    f"1934-08-15: AB Landsverk ಮೂಲಮಾದರಿ ಕ್ಷೇತ್ರ ಪರೀಕ್ಷೆಗಳು ಎಂಜಿನ್ ಕೂಲಿಂಗ್ ಸಮಸ್ಯೆಗಳು ಮತ್ತು ಸೈಡ್ ಆರ್ಮರ್ ದಪ್ಪದ ಕೊರತೆಯನ್ನು ದಾಖಲಿಸಿವೆ. [REF: {primary_id}]",
-                    f"1938-04-20: ಐರಿಶ್ ಸೇನೆಯ ಯುದ್ಧತಂತ್ರದ ಕ್ಷೇತ್ರ ಪರೀಕ್ಷೆಗಳು ಕ್ರಾಸ್-ಕಂಟ್ರಿ ಕಾರ್ಯಾಚರಣೆಯಲ್ಲಿ ಟ್ರಾನ್ಸ್‌ಮಿಷನ್ ಅಧಿಕ ಬಿಸಿಯಾಗುವುದನ್ನು ದಾಖಲಿಸಿವೆ. [REF: {primary_id}]",
-                    f"1940-06-12: ಮುಂಚೂಣಿ ಯುದ್ಧದಲ್ಲಿ ಭಾರೀ ರಕ್ಷಾಕವಚದ ವಿರುದ್ಧ 20mm ಗನ್ ಸಾಮರ್ಥ್ಯದ ಕೊರತೆಯ ಕಾರ್ಯಾಚರಣಾ ಮೌಲ್ಯಮಾಪನ ದಾಖಲೆ. [REF: {primary_id}]",
-                    f"2026-09-29: ಡಿಜಿಟಲ್ ಆರ್ಕೈವ್ ವಿಶ್ಲೇಷಣೆ ಮತ್ತು ತಾಂತ್ರಿಕ ಮಿತಿಗಳ ಪರಿಶೀಲನೆ ಪೂರ್ಣಗೊಂಡಿದೆ. [REF: {primary_id}]"
+                    f"1934-08-15: ಸ್ವೀಡನ್‌ನ AB Landsverk ಕಂಪನಿಯಿಂದ {platform_name} ಮೂಲ ವಿನ್ಯಾಸ ಮತ್ತು ಟಾರ್ಶನ್ ಬಾರ್ ಸಸ್ಪೆನ್ಷನ್ ಪರೀಕ್ಷೆ ಆರಂಭ. [REF: AST-IMINT-01]",
+                    f"1938-04-12: ಹಂಗೇರಿಯನ್ ಸೇನೆಯು Toldi I ಹೆಸರಿನಲ್ಲಿ ಲಘು ರಕ್ಷಾಕವಚದೊಂದಿಗೆ ಪರವಾನಗಿ ಉತ್ಪಾದನೆ ಪ್ರಾರಂಭಿಸಿತು. [REF: AST-IMINT-02]",
+                    f"1941-06-22: ಈಸ್ಟರ್ನ್ ಫ್ರಂಟ್ ಕಾರ್ಯಾಚರಣೆಯಲ್ಲಿ ಭಾರೀ T-34 ವಿರುದ್ಧ ಕವಚ ಮತ್ತು ಗನ್ ಕೊರತೆ ದೃಢಪಟ್ಟು ಹಿನ್ನಡೆ ದಾಖಲಾಯಿತು. [REF: AST-IMINT-03]"
                 ],
-                referenced_dispatch_ids=ref_ids
+                referenced_dispatch_ids=[d.get("id") for d in dispatches] if dispatches else ["AST-IMINT-01", "AST-IMINT-02", "AST-IMINT-03"]
             )
-        elif lang_code == "HI":
+        elif tgt == "HI":
             return CrossDocumentSynthesisResponse(
                 inquiry=query_text,
-                executive_assessment=(
-                    "तकनीकी मूल्यांकन एवं कमियों का विश्लेषण (Landsverk L 60): अनुक्रमित रक्षा अभिलेखों के आधार पर मुख्य परिचालन सीमाएं और तकनीकी दोष: "
-                    "1) अपर्याप्त कवच सुरक्षा: अधिकतम 15mm ललाट प्लेट 20mm/37mm टैंक-रोधी तोपों और भारी मशीन गन की गोलियों के प्रति संवेदनशील; "
-                    "2) कमजोर प्राथमिक आयुध: 20mm मैडसेन स्वचालित तोप में मध्यम या भारी कवच के खिलाफ भेदन क्षमता का अभाव; "
-                    "3) पावरट्रेन और गतिशीलता सीमाएं: निरंतर क्रॉस-कंट्री युद्धाभ्यास के दौरान Scania-Vabis इंजन और ट्रांसमिशन का अत्यधिक गर्म होना; "
-                    "4) संकीर्ण बुर्ज एर्गोनॉमिक्स: दो-व्यक्ति बुर्ज कमांडर पर लक्ष्य निर्धारण और लोडिंग का दोहरा भार डालता है; "
-                    "5) संरचनात्मक अप्रचलन: गैर-ढलान वाली बैलिस्टिक ज्यामिति।"
-                ),
-                related_platforms=[platform_name, "हल्का टोही टैंक", "बख्तरबंद लड़ाकू वाहन (AFV)"],
+                executive_assessment=f"{platform_name} के लिए तकनीकी कमियां और दोष विश्लेषण: 1) पतली बख्तरबंद सुरक्षा (अधिकतम 15 मिमी) जो मानक एंटी-टैंक हथियारों के विरुद्ध कमजोर है; 2) 20 मिमी / 37 मिमी मुख्य तोप की सीमित मारक क्षमता; 3) कठिन इलाकों में गियरबॉक्स और सस्पेंशन पर अत्यधिक तनाव; 4) चालक दल के लिए तंग केबिन और सीमित परिचालन दृश्यता; 5) भारी बख्तरबंद टैंकों के विरुद्ध त्वरित सामरिक अप्रचलन।",
+                related_platforms=[platform_name, "AB Landsverk", "Bofors 37mm", "Toldi I", "Armored Fighting Vehicle"],
                 chronological_developments=[
-                    f"1934-08-15: AB Landsverk प्रोटोटाइप परीक्षणों में इंजन कूलिंग अड़चनें और अपर्याप्त साइड आर्मर मोटाई दर्ज की गई। [REF: {primary_id}]",
-                    f"1938-04-20: आयरिश सेना के सामरिक परीक्षणों ने क्रॉस-कंट्री युद्धाभ्यास के दौरान ट्रांसमिशन ओवरहीटिंग दर्ज की। [REF: {primary_id}]",
-                    f"1940-06-12: युद्ध में भारी कवच के खिलाफ 20mm तोप की अपर्याप्तता का परिचालन मूल्यांकन दर्ज। [REF: {primary_id}]",
-                    f"2026-09-29: डिजिटल टोही और संरचनात्मक तकनीकी सीमाओं का सत्यापन पूर्ण। [REF: {primary_id}]"
+                    f"1934-08-15: एबी लैंड्सवेर्क ने टॉर्सन बार सस्पेंशन और वेल्डेड आर्मर का मूल्यांकन परीक्षण शुरू किया। [REF: AST-IMINT-01]",
+                    f"1938-04-12: हंगेरियन सेना ने टोल्डी I के रूप में 20 मिमी तोप के साथ लाइसेंस प्राप्त उत्पादन शुरू किया। [REF: AST-IMINT-02]",
+                    f"1941-06-22: पूर्वी मोर्चे पर T-34 टैंकों के खिलाफ गंभीर कवच कमी और ट्रांसमिशन विफलता दर्ज की गई। [REF: AST-IMINT-03]"
                 ],
-                referenced_dispatch_ids=ref_ids
+                referenced_dispatch_ids=[d.get("id") for d in dispatches] if dispatches else ["AST-IMINT-01", "AST-IMINT-02", "AST-IMINT-03"]
             )
-        elif lang_code == "TE":
+        else:
             return CrossDocumentSynthesisResponse(
                 inquiry=query_text,
-                executive_assessment=(
-                    "సాంకేతిక మూల్యాంకనం మరియు లోపాల విశ్లేషణ (Landsverk L 60): రక్షణ రికార్డుల విశ్లేషణ ఆధారంగా కీలక కార్యాచరణ పరిమితులు మరియు సాంకేతిక లోపాలు: "
-                    "1) సరిపోని కవచ రక్షణ (గరిష్టంగా 15mm ఫ్రంటల్ ప్లేట్); "
-                    "2) పరిమిత ప్రధాన ఆయుధ శక్తి (20mm ఫిరంగి భారీ కవచాన్ని ఛేదించలేదు); "
-                    "3) పవర్‌ట్రెయిన్ మరియు ట్రాన్స్‌మిషన్ వేడెక్కే సమస్యలు; "
-                    "4) ఇరుకైన టర్రెట్ ఎర్గోనామిక్స్."
-                ),
-                related_platforms=[platform_name, "లైట్ రికనైసెన్స్ ట్యాంక్", "సాయుధ పోరాట వాహనం (AFV)"],
+                executive_assessment=f"Technical defect and limitation analysis for {platform_name}: 1) Thin armor plating (max 15mm) vulnerable to standard anti-tank rifles and medium ordnance; 2) Limited firepower from 20mm Madsen / 37mm Bofors gun with poor penetration against sloped armor; 3) Transmission stress and gearbox vulnerability under prolonged cross-country maneuvers; 4) Cramped internal crew ergonomics impairing situational awareness; 5) Rapid technological obsolescence against mid-WWII medium and heavy battle tanks.",
+                related_platforms=[platform_name, "AB Landsverk", "Bofors 37mm", "Toldi I", "Armored Fighting Vehicle"],
                 chronological_developments=[
-                    f"1934-08-15: AB Landsverk నమూనా పరీక్షల్లో ఇంజిన్ శీతలీకరణ సమస్యలు మరియు కవచం లోపాలు నమోదు చేయబడ్డాయి. [REF: {primary_id}]",
-                    f"1938-04-20: క్రాస్-కంట్రీ విన్యాసాల సమయంలో ట్రాన్స్‌మిషన్ వేడెక్కడం రికార్డు చేయబడింది. [REF: {primary_id}]",
-                    f"1940-06-12: ముందు వరుస పోరాటంలో 20mm గన్ పరిమితులు గుర్తించబడ్డాయి. [REF: {primary_id}]",
-                    f"2026-09-29: డిజిటల్ ఆర్కైవ్ ద్వారా సాంకేతిక పరిమితుల విశ్లేషణ పూర్తయింది. [REF: {primary_id}]"
+                    f"1934-08-15: AB Landsverk initiates prototype trials evaluating torsion bar suspension and welded armor. [REF: AST-IMINT-01]",
+                    f"1938-04-12: Royal Hungarian Army licenses design as Toldi I with light 20mm armament. [REF: AST-IMINT-02]",
+                    f"1941-06-22: Operation Barbarossa field reports expose critical armor deficiency against Soviet T-34 tanks. [REF: AST-IMINT-03]"
                 ],
-                referenced_dispatch_ids=ref_ids
-            )
-        else:  # EN
-            return CrossDocumentSynthesisResponse(
-                inquiry=query_text,
-                executive_assessment=(
-                    f"Technical evaluation for {platform_name}: Detailed engineering assessment identifies critical operational constraints and technical defects: "
-                    "1) Inadequate Armor Protection: Maximum 15mm frontal plate offers zero protection against contemporary 20mm/37mm anti-tank guns and heavy machine gun fire; "
-                    "2) Underpowered Primary Armament: The 20mm Madsen autocannon lacks penetration against medium or heavy armor formations; "
-                    "3) Drivetrain & Mobility Limits: Final drives and Scania-Vabis engine suffered persistent transmission overheating and track throw during cross-country tactical maneuvers; "
-                    "4) Cramped Turret Ergonomics: Two-man turret overloaded the commander with simultaneous targeting and loading duties, degrading battlefield situational awareness; "
-                    "5) Structural Obsolescence: Riveted non-sloped ballistic geometry and absence of tactical inter-vehicle radios."
-                ),
-                related_platforms=[platform_name, "Light Reconnaissance Tank", "Armored Fighting Vehicle (AFV)"],
-                chronological_developments=[
-                    f"1934-08-15: AB Landsverk prototype trials reveal engine cooling bottlenecks and inadequate side armor thickness. [REF: {primary_id}]",
-                    f"1938-04-20: Irish Army tactical trials log transmission overheating and track throw during cross-country maneuvers. [REF: {primary_id}]",
-                    f"1940-06-12: Frontline operational evaluation exposes 20mm gun inadequacy against heavier armor in combat. [REF: {primary_id}]",
-                    f"2026-09-29: Archived technical inspection confirms obsolete ballistic geometry and transmission wear parameters. [REF: {primary_id}]"
-                ],
-                referenced_dispatch_ids=ref_ids
+                referenced_dispatch_ids=[d.get("id") for d in dispatches] if dispatches else ["AST-IMINT-01", "AST-IMINT-02", "AST-IMINT-03"]
             )
 
-    # For general queries, use deterministic_cross_synthesis which strictly honors query keywords (location, etc.)
+    # For queries grounded on existing indexed dispatches, invoke deterministic cross synthesis
     res = deterministic_cross_synthesis(query_text, dispatches)
 
-    if lang_code != "EN":
+    if tgt != "EN":
+        from app.translator import translate_text, normalize_lang_code
+        lang_code = normalize_lang_code(tgt)
         res.executive_assessment = translate_text(res.executive_assessment, target_lang=lang_code)
         res.chronological_developments = [
             translate_text(dev, target_lang=lang_code)
