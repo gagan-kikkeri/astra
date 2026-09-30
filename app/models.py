@@ -92,6 +92,9 @@ class ImageAnalysisExtraction(StructuredExtraction):
 
 class ArticleRecord(ArticleIngestInput, StructuredExtraction):
     """Complete persistent article record in database."""
+    title: str = Field(..., description="Dispatch headline or article title")
+    keywords: List[str] = Field(default_factory=list, description="Normalized lowercase tactical tags")
+    entities: List[str] = Field(default_factory=list, description="Identified platforms, manufacturers, government branches, or weapon systems")
     id: str = Field(..., description="Unique alphanumeric identifier (e.g., AST-8A4F12)")
     content_hash: str = Field(..., description="Deterministic SHA-256 fingerprint")
     created_at: str = Field(..., description="System ingestion timestamp (ISO-8601)")

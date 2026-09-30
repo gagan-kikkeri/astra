@@ -1162,6 +1162,8 @@ def sync_live_defense_feeds(limit_per_feed: int = 3) -> dict:
 
                 # If extraction provided a translated/unified English title, use it
                 resolved_title = extraction.title if (extraction.title and len(extraction.title) >= 5) else title
+                if len(resolved_title) > 280:
+                    resolved_title = resolved_title[:277].rstrip() + "..."
 
                 record_id = f"AST-LIVE-{content_hash[:8].upper()}"
                 now_str = datetime.now(timezone.utc).isoformat()

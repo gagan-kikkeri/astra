@@ -117,6 +117,15 @@ def _fallback_translate_single(text: str, target_lang: str) -> str:
             ("डीजीसीए ने जायरोप्लेन पायलटों के लिए प्रशिक्षण ढांचा प्रस्तुत किया", "DGCA introduces training framework for gyroplane pilots"),
             ("नागर विमानन महानिदेशालय ने देश में जायरोप्लेन पायलटों के प्रशिक्षण के लिए व्यापक सुरक्षा ढांचा प्रस्तुत किया है।", "Directorate General of Civil Aviation has introduced a comprehensive safety framework for training gyroplane pilots in the country."),
             ("नागर विमानन महानिदेशालय", "Directorate General of Civil Aviation"),
+            ("भारतीय सुरक्षा बलों", "Indian Security Forces"),
+            ("सुरक्षा बलों", "security forces"),
+            ("जम्मू और कश्मीर", "Jammu and Kashmir"),
+            ("जम्मू-कश्मीर", "Jammu-Kashmir"),
+            ("लश्कर-ए-तैयबा", "Lashkar-e-Taiba"),
+            ("सीनियर कमांडर", "senior commander"),
+            ("कमांडर", "commander"),
+            ("खुफिया जानकारी", "intelligence"),
+            ("ऑपरेशन", "operation"),
             ("जायरोप्लेन", "gyroplane"),
             ("प्रशिक्षण", "training"),
             ("सुरक्षा ढांचा", "safety framework"),
@@ -131,8 +140,12 @@ def _fallback_translate_single(text: str, target_lang: str) -> str:
         for hi, en in hi_to_en:
             res = res.replace(hi, en)
         if not is_pure_english(res):
-            res = re.sub(r'[\u0900-\u097F]+', 'defence dispatch', res)
+            res = re.sub(r'[\u0900-\u0D7F][\u0900-\u0D7F\s\-,()\'"]*[\u0900-\u0D7F]', 'Defence Operational Dispatch', res)
+            res = re.sub(r'[\u0900-\u0D7F]+', 'Defence Operational Dispatch', res)
+            res = re.sub(r'(Defence Operational Dispatch\s*)+', 'Defence Operational Dispatch ', res, flags=re.IGNORECASE)
             res = re.sub(r'\s+', ' ', res).strip()
+        if len(res) > 280:
+            res = res[:277].rstrip() + "..."
         return res
 
     known_translations = {

@@ -127,20 +127,24 @@ def row_to_article(row: sqlite3.Row) -> ArticleRecord:
 
     keywords = json.loads(raw_keywords) if isinstance(raw_keywords, str) else list(raw_keywords)
     entities = json.loads(raw_entities) if isinstance(raw_entities, str) else list(raw_entities)
-    summary_text = row["summary"]
+    summary_text = str(row["summary"] or "")
+    title_text = str(row["title"] or "Untitled Dispatch")
+    content_text = str(row["content"] or "")
+    source_text = str(row["source"] or "OSINT Dispatch")
+    threat_val = str(row["threat_impact"] or "LOW")
 
     return ArticleRecord(
         id=row["id"],
         content_hash=row["content_hash"],
-        title=row["title"],
-        content=row["content"],
+        title=title_text,
+        content=content_text,
         category=row["category"],
         detailed_summary=summary_text,
         executive_summary=summary_text,
-        threat_impact=row["threat_impact"],
+        threat_impact=threat_val,
         keywords=keywords,
         entities=entities,
-        source=row["source"],
+        source=source_text,
         date=row["published_date"],
         created_at=row["created_at"]
     )
