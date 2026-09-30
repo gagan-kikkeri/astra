@@ -268,12 +268,15 @@ async def ingest_multimodal_file(file: UploadFile = File(...)):
         now_utc = datetime.now(timezone.utc)
         article_id = f"AST-{uuid.uuid4().hex[:8].upper()}"
         published_date = now_utc.strftime("%Y-%m-%d")
-        clean_stem = re.sub(r'^[0-9]+[-_]?', '', re.sub(r'\.[^.]+$', '', fn)).replace('_', ' ').replace('-', ' ').strip()
-        title = extraction.title or f"{clean_stem.title()} Tactical Reconnaissance"
+        # Store extraction results directly in database
+        title = extraction.title if (hasattr(extraction, 'title') and extraction.title) else f"{fn} Telemetry"
+        summary_text = extraction.detailed_summary or extraction.executive_summary or ""
+        category = extraction.category
+        threat = extraction.threat_impact
         source = f"[IMINT SENSOR] {fn}"
 
         content = (
-            f"{extraction.executive_summary}\n\n"
+            f"{summary_text}\n\n"
             f"Observed Platforms and Entities: {', '.join(extraction.entities)}.\n"
             f"Tactical Keywords: {', '.join(f'#{k}' for k in extraction.keywords)}."
         )
@@ -286,10 +289,10 @@ async def ingest_multimodal_file(file: UploadFile = File(...)):
             source=source,
             date=published_date,
             created_at=now_utc.isoformat(),
-            category=extraction.category,
-            detailed_summary=extraction.detailed_summary or extraction.executive_summary or "",
-            executive_summary=extraction.detailed_summary or extraction.executive_summary or "",
-            threat_impact=extraction.threat_impact,
+            category=category,
+            detailed_summary=summary_text,
+            executive_summary=summary_text,
+            threat_impact=threat,
             keywords=extraction.keywords,
             entities=extraction.entities
         )
