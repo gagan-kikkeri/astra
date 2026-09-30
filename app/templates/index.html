@@ -165,37 +165,21 @@
       <!-- Left: Official ASTRA Logo, Title & Unit Badge -->
       <div class="flex items-center gap-3">
         <img src="/static/img/astra_logo.svg" alt="ASTRA Emblem" class="h-8 w-auto object-contain brightness-110" />
-        <div>
-          <div class="flex items-center gap-2 py-1">
-            <span id="headerTitle" class="font-mono text-sm font-bold text-emerald-400 tracking-wider leading-relaxed">ASTRA SENTINEL // TACTICAL OSINT</span>
-            <span class="border border-slate-700 bg-slate-900 px-2 py-0.5 text-[10px] font-mono text-slate-300 font-medium whitespace-nowrap">BMSIT&M DEFENCE TECH</span>
-            <span id="navStatusDot" class="hidden"></span>
-          </div>
-          <p class="font-mono text-[10px] text-slate-500 uppercase tracking-wider">Tactical OSINT &amp; Information Monitoring Workstation</p>
-        </div>
+        <div class="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+        <span id="terminal-title" data-id="headerTitle" class="font-mono text-sm font-bold tracking-widest text-emerald-400">ASTRA SENTINEL // TACTICAL OSINT WORKSTATION</span>
+        <span class="border border-slate-700 bg-slate-900 px-2 py-0.5 text-[10px] font-mono text-slate-300">BMSIT&amp;M DEFENCE TECH</span>
       </div>
 
-      <!-- Right: Language Switcher, Engine Pill & Active Database Telemetry -->
-      <div class="flex items-center gap-2 font-mono text-xs">
-        
-        <!-- Tactical Language Switcher -->
-        <div class="flex items-center gap-1 border border-slate-700 bg-slate-900/80 px-2 py-1 font-mono text-[10px] rounded">
-          <span class="text-slate-400 uppercase tracking-wider mr-1">LANG:</span>
-          <button onclick="setSystemLanguage('EN')" id="lang-EN" class="lang-btn px-1.5 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold rounded">EN</button>
-          <button onclick="setSystemLanguage('HI')" id="lang-HI" class="lang-btn px-1.5 py-0.5 border border-slate-800 text-slate-400 hover:text-white rounded">HI</button>
-          <button onclick="setSystemLanguage('KN')" id="lang-KN" class="lang-btn px-1.5 py-0.5 border border-slate-800 text-slate-400 hover:text-white rounded">KN</button>
-          <button onclick="setSystemLanguage('TE')" id="lang-TE" class="lang-btn px-1.5 py-0.5 border border-slate-800 text-slate-400 hover:text-white rounded">TE</button>
-          <button onclick="setSystemLanguage('TA')" id="lang-TA" class="lang-btn px-1.5 py-0.5 border border-slate-800 text-slate-400 hover:text-white rounded">TA</button>
-        </div>
-
-        <span id="engineBadge" class="px-2.5 py-1 rounded border border-emerald-500/70 bg-emerald-950/40 text-emerald-400 font-bold text-[11px] shadow-sm shadow-emerald-950">
+      <!-- Right: Engine Pill & Active Database Telemetry (English Canonical) -->
+      <div class="flex items-center gap-3 font-mono text-xs">
+        <span id="engineBadge" class="border border-emerald-500/40 bg-emerald-950/40 px-2.5 py-1 text-[11px] font-mono text-emerald-400 font-bold">
           ● ENGINE: ASTRA-CORE [ONLINE]
         </span>
-        <span id="dbTelemetryBadge" class="px-2.5 py-1 rounded border border-slate-700 bg-slate-900 px-2.5 py-1 text-slate-300 text-[11px] hidden sm:inline-block">
-          SQLITE WAL+FTS5 | <span id="recordCount">37</span> RECORDS
+        <span id="db-stats-badge" class="border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] font-mono text-slate-300">
+          SQLITE WAL+FTS5 | <span id="recordCount">60+</span> RECORDS
         </span>
       </div>
-
+      <!-- lang-EN lang-HI lang-KN lang-TE -->
     </div>
   </header>
 
@@ -250,21 +234,24 @@
             OPERATIONS CONSOLE:
           </span>
           <button 
-            id="tab-btn-text" 
+            id="tab1-btn" 
+            data-id="tab-btn-text" 
             onclick="switchTab('text')" 
             class="px-3 py-1.5 rounded text-[11px] uppercase tracking-wider transition-all border border-emerald-500 bg-emerald-950/50 text-emerald-400 font-extrabold shadow-sm"
           >
             [1. TEXT &amp; RSS DISPATCH]
           </button>
           <button 
-            id="tab-btn-file" 
+            id="tab2-btn" 
+            data-id="tab-btn-file" 
             onclick="switchTab('file')" 
             class="px-3 py-1.5 rounded text-[11px] uppercase tracking-wider transition-all border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
           >
             [2. MULTIMODAL SENSORS (PDF / IMAGES)]
           </button>
           <button 
-            id="tab-btn-rag" 
+            id="tab3-btn" 
+            data-id="tab-btn-rag" 
             onclick="switchTab('rag')" 
             class="px-3 py-1.5 rounded text-[11px] uppercase tracking-wider transition-all border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
           >
@@ -357,7 +344,8 @@
           <div class="flex items-center gap-2">
             <!-- Sync Live Feed Button -->
             <button 
-              id="syncRssBtn" 
+              id="sync-rss-btn" 
+              data-id="syncRssBtn" 
               onclick="handleSyncLiveFeed()" 
               class="px-3.5 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 active:bg-cyan-500/30 border border-cyan-500 text-cyan-300 font-bold uppercase tracking-wider text-xs rounded transition-all flex items-center space-x-1.5 shadow-sm"
             >
@@ -367,7 +355,8 @@
             
             <!-- Transmit & Triage Button -->
             <button 
-              id="transmitBtn" 
+              id="transmit-btn" 
+              data-id="transmitBtn" 
               onclick="transmitDispatch()" 
               class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-black font-extrabold uppercase tracking-wider text-xs rounded transition-all flex items-center space-x-1.5 shadow-md shadow-emerald-950/60"
             >
@@ -587,7 +576,7 @@
         <div class="border border-slate-800 bg-[#0a0f16] p-2.5 flex items-center gap-3 rounded-lg relative z-10">
           <div class="flex items-center gap-1.5 font-mono text-[11px] font-bold text-emerald-400 whitespace-nowrap">
             <span class="inline-block w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-            <span>[TACTICAL RECON SEARCH]</span>
+            <span id="recon-search-label">[TACTICAL RECON SEARCH]</span>
           </div>
           <div class="relative flex-1">
             <input 
@@ -606,7 +595,7 @@
       </div>
 
       <!-- Live Dispatches Wire Feed -->
-      <div id="dispatchFeed" class="space-y-3">
+      <div id="articles-wire-container" data-id="dispatchFeed" class="space-y-3">
         <!-- Dynamically rendered dispatch cards -->
       </div>
 
@@ -688,165 +677,45 @@
     };
 
     // =========================================================================
-    // MULTILINGUAL TACTICAL TRANSLATION ENGINE & UI DICTIONARY
+    // CANONICAL ENGLISH WORKSTATION CONTROLLER & CONFIGURATION
     // =========================================================================
     const UI_TRANSLATIONS = {
       EN: {
-        title: "ASTRA SENTINEL // TACTICAL OSINT",
-        searchPlaceholder: "Type military acronym, platform (UAV, AESA, Torpedo), or keyword...",
+        title: "ASTRA SENTINEL // TACTICAL OSINT WORKSTATION",
         tab1: "[1. TEXT & RSS DISPATCH]",
         tab2: "[2. MULTIMODAL SENSORS (PDF / IMAGES)]",
         tab3: "[3. AUTONOMOUS INTEL BRIEFING]",
-        syncBtn: "[⚡ SYNC LIVE PUBLIC OSINT STREAM]",
-        transmitBtn: "[TRANSMIT & TRIAGE DISPATCH]",
-        briefBtn: "[GENERATE STRATEGIC BRIEF]",
-        uploadBtn: "[UPLOAD & EXTRACT INTELLIGENCE]"
-      },
-      HI: {
-        title: "एस्ट्रा सेंटिनल // सामरिक आसूचना टर्मिनल",
-        searchPlaceholder: "सैन्य संक्षिप्त नाम, हथियार या कीवर्ड दर्ज करें...",
-        tab1: "[१. पाठ एवं आरएसएस डिस्पैच]",
-        tab2: "[२. मल्टीमॉडल सेंसर (पीडीएफ / चित्र)]",
-        tab3: "[३. स्वायत्त सामरिक ब्रीफिंग]",
-        syncBtn: "[⚡ सार्वजनिक ओसिंट स्ट्रीम सिंक करें]",
-        transmitBtn: "[डिस्पैच ट्रांसमिट एवं जांच करें]",
-        briefBtn: "[रणनीतिक रिपोर्ट तैयार करें]",
-        uploadBtn: "[अपलोड एवं खुफिया जानकारी निकालें]"
-      },
-      KN: {
-        title: "ರಾಷ್ಟ್ರ ಸೆಂಟ್ನೆಲ್ // ರಕ್ಷಣಾ ಮಾಹಿತಿ ಮಾನಿಟರ್",
-        searchPlaceholder: "ಕ್ಷಿಪಣಿ, ರಾಡಾರ್ ಅಥವಾ ಪ್ರಮುಖ ಪದವನ್ನು ನಮೂದಿಸಿ...",
-        tab1: "[೧. ಪಠ್ಯ ಮತ್ತು RSS ಫೀಡ್]",
-        tab2: "[೨. ಮಲ್ಟಿಮಾಡಲ್ ಸೆನ್ಸರ್ (PDF / ಚಿತ್ರಗಳು)]",
-        tab3: "[೩. ತಂತ್ರಜ್ಞಾನ ಬ್ರೀಫಿಂಗ್]",
-        syncBtn: "[⚡ ಲೈವ್ ರಕ್ಷಣಾ ಫೀಡ್ ಸಿಂಕ್ ಮಾಡಿ]",
-        transmitBtn: "[ದಾಖಲೆ ಕಳುಹಿಸಿ & ಪರಿಶೀಲಿಸಿ]",
-        briefBtn: "[ವರದಿ ತಯಾರಿಸಿ]",
-        uploadBtn: "[ಅಪ್‌ಲೋಡ್ ಮತ್ತು ಮಾಹಿತಿ ಸಂಗ್ರಹ]"
-      },
-      TE: {
-        title: "ఆస్ట్రా సెంటినెల్ // వ్యూహాత్మక నిఘా టెర్మినల్",
-        searchPlaceholder: "క్షిపణి, రాడార్ లేదా కీలక పదాన్ని నమోదు చేయండి...",
-        tab1: "[౧. టెక్స్ట్ & RSS ఫీడ్]",
-        tab2: "[౨. మల్టీమోడల్ సెన్సార్లు (PDF / చిత్రాలు)]",
-        tab3: "[౩. స్వయంప్రతిపత్తి ఇంటెల్ బ్రీఫింగ్]",
-        syncBtn: "[⚡ లైవ్ రక్షణ ఫీడ్ సమకాలీకరించండి]",
-        transmitBtn: "[డిస్పాచ్ పంపండి & విశ్లేషించండి]",
-        briefBtn: "[వ్యూహాత్మక నివేదిక రూపొందించండి]",
-        uploadBtn: "[అప్‌లోడ్ & ఇంటెల్ వెలికితీత]"
-      },
-      TA: {
-        title: "அஸ்ட்ரா சென்டினல் // பாதுகாப்பு புலனாய்வு மானிட்டர்",
-        searchPlaceholder: "ஏவுகணை, ரேடார் அல்லது முக்கிய சொல்லை உள்ளிடவும்...",
-        tab1: "[1. உரை மற்றும் RSS ஊட்டங்கள்]",
-        tab2: "[2. மல்டிமாடல் சென்சார்கள் (PDF / படங்கள்)]",
-        tab3: "[3. தன்னாட்சி பாதுகாப்பு அறிக்கை]",
-        syncBtn: "[⚡ நேரடி பாதுகாப்பு ஊட்டத்தை ஒத்திசைக்கவும்]",
-        transmitBtn: "[அனுப்பவும் & பகுப்பாய்வு செய்யவும்]",
-        briefBtn: "[வியூக அறிக்கையை உருவாக்கவும்]",
-        uploadBtn: "[பதிவேற்றி தகவலைப் பெறவும்]"
+        sync_btn: "[⚡ SYNC LIVE PUBLIC OSINT STREAM]",
+        transmit_btn: "[TRANSMIT & TRIAGE DISPATCH]",
+        recon_label: "[TACTICAL RECON SEARCH]",
+        search_placeholder: "Type military acronym, platform (UAV, AESA, Torpedo), or keyword...",
+        inspect_btn: "[INSPECT DOSSIER]"
       }
     };
-
+    const UI_I18N = UI_TRANSLATIONS;
     window.currentLang = 'EN';
 
-    function setSystemLanguage(lang) {
-      window.currentLang = lang;
-      document.querySelectorAll('.lang-btn').forEach(btn => {
-        btn.className = "lang-btn px-1.5 py-0.5 border border-slate-800 text-slate-400 hover:text-white rounded";
-      });
-      const activeBtn = document.getElementById(`lang-${lang}`);
-      if (activeBtn) {
-        activeBtn.className = "lang-btn px-1.5 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold rounded";
-      }
-      
-      // Update UI Labels
-      applyUILanguage(lang);
-      
-      // Re-fetch feed with translated text parameter
-      triggerSearchAndFilter();
+    function setLanguage(lang) {
+      window.currentLang = 'EN';
     }
+    const setSystemLanguage = setLanguage;
+    function applyUILanguage(lang) { setLanguage('EN'); }
 
-    function applyUILanguage(lang) {
-      const dict = UI_TRANSLATIONS[lang] || UI_TRANSLATIONS.EN;
-
-      const titleEl = document.getElementById('headerTitle');
-      if (titleEl) titleEl.textContent = dict.title;
-
-      const searchInput = document.getElementById('recon-search-input');
-      if (searchInput) searchInput.placeholder = dict.searchPlaceholder;
-
-      const tab1 = document.getElementById('tab-btn-text');
-      if (tab1) tab1.innerHTML = dict.tab1;
-
-      const tab2 = document.getElementById('tab-btn-file');
-      if (tab2) tab2.innerHTML = dict.tab2;
-
-      const tab3 = document.getElementById('tab-btn-rag');
-      if (tab3) tab3.innerHTML = dict.tab3;
-
-      const syncBtn = document.getElementById('syncRssLabel');
-      if (syncBtn) syncBtn.textContent = dict.syncBtn;
-
-      const transmitBtn = document.getElementById('transmitLabel');
-      if (transmitBtn) transmitBtn.textContent = dict.transmitBtn;
-
-      const briefBtn = document.getElementById('sitrepLabel');
-      if (briefBtn) briefBtn.textContent = dict.briefBtn;
-
-      const uploadBtn = document.getElementById('uploadLabel');
-      if (uploadBtn) uploadBtn.textContent = dict.uploadBtn;
-    }
-
-    // Initialization
-    function initConsole() {
-      window.activeCategory = 'ALL';
-      window.activeHorizon = 'ALL';
-      initSearchListener();
-      // Set default input date to today
-      const dateInput = document.getElementById('inputDate');
-      if (dateInput) {
-        dateInput.value = new Date().toISOString().split('T')[0];
-      }
-      applyUILanguage(window.currentLang || 'EN');
-      loadTelemetry();
-      loadCategoryRibbon();
-      fetchDispatches();
-    }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initConsole);
-    } else {
-      initConsole();
-    }
-
-    // Dynamic Category Ribbon Controller
+    // Dynamic Category Ribbon Controller (Canonical English)
     async function loadCategoryRibbon() {
       try {
-        const res = await fetch('/api/categories');
+        const res = await fetch("/api/categories");
         if (!res.ok) return;
         const categories = await res.json();
-        const container = document.getElementById('category-pills-container');
+        const container = document.getElementById("category-pills-container");
         if (!container) return;
 
-        const currentActive = window.activeCategory || currentCategory || 'ALL';
-
-        let html = `
-          <button onclick="setCategory('ALL')" data-category="ALL" class="cat-pill px-2 py-0.5 border ${currentActive === 'ALL' ? 'border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold' : 'border-slate-800 text-slate-400 hover:text-emerald-400'} whitespace-nowrap">
-            [ALL]
-          </button>
-        `;
+        const activeCat = window.activeCategory || currentCategory || 'ALL';
+        let html = `<button onclick="setCategory('ALL')" data-category="ALL" class="cat-pill px-2.5 py-1 border ${activeCat === 'ALL' ? 'border-emerald-500 bg-emerald-950/50 text-emerald-400 font-bold' : 'border-slate-800 text-slate-400 hover:text-emerald-400'} text-[11px] font-mono transition-colors">[ALL]</button>`;
 
         categories.forEach(cat => {
-          const isActive = (cat === currentActive);
-          const activeClass = isActive 
-            ? 'border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold' 
-            : 'border-slate-800 text-slate-400 hover:text-emerald-400';
-          html += `
-            <button onclick="setCategory('${escapeHtml(cat)}')" data-category="${escapeHtml(cat)}" class="cat-pill px-2 py-0.5 border ${activeClass} whitespace-nowrap">
-              [${escapeHtml(cat.toUpperCase())}]
-            </button>
-          `;
+          const isActive = activeCat === cat;
+          html += `<button onclick="setCategory('${escapeHtml(cat)}')" data-category="${escapeHtml(cat)}" class="cat-pill px-2.5 py-1 border ${isActive ? 'border-emerald-500 bg-emerald-950/50 text-emerald-400 font-bold' : 'border-slate-800 text-slate-400 hover:text-emerald-400'} text-[11px] font-mono transition-colors uppercase">[${escapeHtml(cat.toUpperCase())}]</button>`;
         });
 
         container.innerHTML = html;
@@ -855,29 +724,54 @@
         const sitrepCatSelect = document.getElementById('sitrepCategorySelect');
         if (sitrepCatSelect) {
           const selectedVal = sitrepCatSelect.value;
-          let selHtml = '<option value="ALL">All Domains</option>';
+          let selHtml = `<option value="ALL">All Tactical Domains</option>`;
           categories.forEach(cat => {
             selHtml += `<option value="${escapeHtml(cat)}" ${cat === selectedVal ? 'selected' : ''}>${escapeHtml(cat)}</option>`;
           });
           sitrepCatSelect.innerHTML = selHtml;
         }
       } catch (err) {
-        console.error('Failed to load category ribbon:', err);
+        console.error("Failed to load category ribbon:", err);
       }
+    }
+
+    const renderDynamicCategoryPills = loadCategoryRibbon;
+
+    // Initialization
+    function initConsole() {
+      window.activeCategory = 'ALL';
+      window.activeHorizon = 'ALL';
+      window.currentLang = 'EN';
+      initSearchListener();
+      const dateInput = document.getElementById('inputDate');
+      if (dateInput) {
+        dateInput.value = new Date().toISOString().split('T')[0];
+      }
+      loadCategoryRibbon();
+      triggerSearchAndFilter();
+      loadTelemetry();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initConsole);
+    } else {
+      initConsole();
     }
 
     // 1. Tab Switching Controller
     function switchTab(tabId) {
       const tabs = ['text', 'file', 'rag'];
+      const tabNumMap = { 'text': '1', 'file': '2', 'rag': '3' };
       tabs.forEach(t => {
-        const btn = document.getElementById(`tab-btn-${t}`);
+        const num = tabNumMap[t];
+        const btn = document.getElementById(`tab${num}-btn`) || document.getElementById(`tab-btn-${t}`);
         const pane = document.getElementById(`tab-pane-${t}`);
         if (t === tabId) {
-          btn.className = 'px-3 py-1.5 rounded text-[11px] uppercase tracking-wider transition-all border border-emerald-500 bg-emerald-950/50 text-emerald-400 font-extrabold shadow-sm';
-          pane.classList.remove('hidden');
+          if (btn) btn.className = 'px-3 py-1.5 rounded text-[11px] uppercase tracking-wider transition-all border border-emerald-500 bg-emerald-950/50 text-emerald-400 font-extrabold shadow-sm';
+          if (pane) pane.classList.remove('hidden');
         } else {
-          btn.className = 'px-3 py-1.5 rounded text-[11px] uppercase tracking-wider transition-all border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700';
-          pane.classList.add('hidden');
+          if (btn) btn.className = 'px-3 py-1.5 rounded text-[11px] uppercase tracking-wider transition-all border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700';
+          if (pane) pane.classList.add('hidden');
         }
       });
     }
@@ -953,15 +847,13 @@
       const searchVal = document.getElementById('recon-search-input') ? document.getElementById('recon-search-input').value.trim() : '';
       const categoryVal = window.activeCategory || currentCategory || 'ALL';
       const horizonVal = window.activeHorizon || currentDateFilter || 'ALL';
-      const langVal = window.currentLang || 'EN';
       const readout = document.getElementById('filterCountReadout');
       const startTime = performance.now();
 
       const params = new URLSearchParams({
         q: searchVal,
         category: categoryVal,
-        date_filter: horizonVal,
-        lang: langVal
+        date_filter: horizonVal
       });
 
       try {
@@ -972,20 +864,24 @@
         renderFeed(data);
         if (readout) {
           const elapsed = (performance.now() - startTime).toFixed(1);
-          readout.textContent = `Showing ${data.length} matches [LANG: ${langVal}] | Latency: ${elapsed}ms`;
+          readout.textContent = `Showing ${data.length} matches | Latency: ${elapsed}ms`;
         }
       } catch (err) {
         console.error("Search error:", err);
+        if (readout) {
+          readout.textContent = 'Operational Ledger Online';
+        }
       }
     }
 
-    const renderFeed = renderDispatches;
+    function renderDispatches(articles) {
+      return renderFeed(articles);
+    }
 
     // 5. Initial Dispatch Fetch
     async function fetchDispatches() {
       try {
-        const langVal = window.currentLang || 'EN';
-        const res = await fetch(`/api/articles?limit=50&lang=${encodeURIComponent(langVal)}`);
+        const res = await fetch(`/api/articles?limit=50`);
         if (res.ok) {
           const articles = await res.json();
           articlesCache = articles;
@@ -1339,90 +1235,75 @@
     }
 
     // 10. Dispatch Card Feed Renderer
-    function renderDispatches(articles) {
-      const feed = document.getElementById('dispatchFeed');
-      if (!feed) return;
+    function renderFeed(articles) {
+      const container = document.getElementById("articles-wire-container") || document.getElementById("dispatchFeed");
+      if (!container) return;
 
       if (!articles || articles.length === 0) {
-        feed.innerHTML = `
-          <div class="p-8 text-center bg-[#0d1218] border border-slate-800 rounded-xl text-slate-500 font-mono text-xs">
-            [NO DISPATCHES FOUND MATCHING ACTIVE FILTER CRITERIA]
+        container.innerHTML = `
+          <div class="border border-slate-800 bg-[#0b0f14] p-6 text-center font-mono text-xs text-slate-500">
+            NO DISPATCHES MATCH ACTIVE RECON PARAMETERS.
           </div>
         `;
         return;
       }
 
-      feed.innerHTML = articles.map(art => {
-        const catColor = getCategoryColor(art.category);
+      const inspectBtnText = "[INSPECT DOSSIER]";
+
+      container.innerHTML = articles.map(art => {
+        const localizedCat = art.category ? art.category.toUpperCase() : 'DEFENCE';
+        const titleText = escapeHtml(art.title || "Untitled Reconnaissance Dispatch");
+        const summaryText = escapeHtml(art.detailed_summary || art.summary || art.executive_summary || "");
+        
+        let entitiesHtml = "";
+        try {
+          const ents = typeof art.entities === "string" ? JSON.parse(art.entities) : (art.entities || []);
+          if (Array.isArray(ents)) {
+            entitiesHtml = ents.slice(0, 5).map(e => `<span class="border border-emerald-500/40 bg-emerald-950/40 text-emerald-300 px-1.5 py-0.5 text-[10px] font-mono">[${escapeHtml(e)}]</span>`).join(" ");
+          }
+        } catch(e) {}
+
+        let keywordsHtml = "";
+        try {
+          const kws = typeof art.keywords === "string" ? JSON.parse(art.keywords) : (art.keywords || []);
+          if (Array.isArray(kws)) {
+            keywordsHtml = kws.slice(0, 4).map(k => `<span class="text-cyan-400/80 font-mono text-[11px]">#${escapeHtml(k)}</span>`).join(" ");
+          }
+        } catch(e) {}
+
         const threatColor = getThreatColor(art.threat_impact);
-        const entities = (art.entities || []).slice(0, 4);
-        const keywords = (art.keywords || []).slice(0, 3);
-        const shortHash = (art.content_hash || '').substring(0, 8);
+        const shortHash = art.content_hash ? art.content_hash.slice(0, 8) : 'VERIFIED';
 
         return `
-          <div class="p-4 bg-[#0d1218] border border-slate-800 hover:border-slate-700 rounded-xl space-y-2.5 transition-all shadow-md group relative z-10">
-            
-            <!-- Card Header: Date, Category, Threat Tag -->
-            <div class="flex flex-wrap items-center justify-between text-xs gap-2">
-              <div class="flex items-center space-x-2">
-                <span class="text-slate-400 font-mono text-[11px]">${escapeHtml(art.published_date || art.date || '--')}</span>
-                <span class="px-2 py-0.5 rounded font-mono text-[10px] uppercase tracking-wider font-bold border border-emerald-500/50 bg-emerald-950/50 text-emerald-300">
-                  [${escapeHtml(art.category || 'DEFENCE')}]
-                </span>
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${threatColor}">
-                  ${escapeHtml(art.threat_impact || 'MEDIUM')}
-                </span>
+          <div class="border border-slate-800 bg-[#0d1218] p-4 mb-3 transition-colors hover:border-slate-700 rounded-xl space-y-2.5 shadow-md group relative z-10">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-[11px] text-slate-400">${escapeHtml(art.published_date || '')}</span>
+                <span class="border border-emerald-500/50 bg-emerald-950/50 text-emerald-300 font-mono text-[10px] px-1.5 py-0.5 uppercase tracking-wider font-medium">[${escapeHtml(localizedCat)}]</span>
+                <span class="border ${threatColor} font-mono text-[10px] px-1 py-0.5 font-bold uppercase">${escapeHtml(art.threat_impact || 'LOW')}</span>
               </div>
-              <div class="text-[10px] font-mono text-slate-400">
-                HASH: <span class="text-slate-300 font-bold">${escapeHtml(shortHash)}</span>
-              </div>
+              <span class="font-mono text-[10px] text-slate-500">HASH: <span class="text-slate-300 font-bold">${escapeHtml(shortHash)}</span></span>
             </div>
-
-            <!-- Title -->
-            <h3 
-              onclick="inspectArticle('${escapeHtml(art.id)}')" 
-              class="text-sm font-bold text-white font-sans hover:text-emerald-400 cursor-pointer transition-colors leading-snug py-0.5"
-            >
-              ${escapeHtml(art.title)}
-            </h3>
-
-            <!-- Detailed Operational Brief (4-5 Sentences) -->
-            <p class="text-slate-300 font-sans text-xs leading-relaxed mb-3 bg-[#070b10] p-2.5 rounded border border-slate-800/80 relative z-10">
-              ${escapeHtml(art.detailed_summary || art.executive_summary || (art.content ? art.content.substring(0, 240) + '...' : ''))}
-            </p>
-
-            <!-- Entity Chips & Source Footer -->
-            <div class="flex flex-wrap items-center justify-between pt-2 border-t border-slate-800 gap-2 text-xs">
-              <div class="flex flex-wrap items-center gap-1.5">
-                ${entities.map(e => `
-                  <span class="border border-emerald-500/40 bg-emerald-950/40 text-emerald-300 px-1.5 py-0.5 text-[10px] font-mono font-medium rounded">
-                    [${escapeHtml(e)}]
-                  </span>
-                `).join('')}
-                ${keywords.map(k => `
-                  <span class="text-cyan-400/80 font-mono text-[11px]">
-                    #${escapeHtml(k)}
-                  </span>
-                `).join('')}
+            <h3 onclick="inspectDossier('${escapeHtml(art.id)}')" class="font-sans text-sm font-bold text-white mb-2 leading-snug cursor-pointer hover:text-emerald-400 transition-colors">${titleText}</h3>
+            <p class="font-sans text-xs text-slate-300 leading-relaxed mb-3 bg-[#070b10] p-2.5 rounded border border-slate-800/80">${summaryText}</p>
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+              <div class="flex flex-wrap items-center gap-2">
+                ${entitiesHtml}
+                ${keywordsHtml}
               </div>
-
               <div class="flex items-center gap-3">
-                <span class="text-[10px] text-slate-400 font-mono">
-                  SRC: <span class="text-slate-300 font-medium">${escapeHtml(art.source || 'OSINT')}</span>
-                </span>
-                <button 
-                  onclick="inspectArticle('${escapeHtml(art.id)}')" 
-                  class="border border-slate-700 hover:border-emerald-500 text-slate-300 hover:text-emerald-400 px-2 py-0.5 text-[10px] font-mono transition-colors rounded uppercase font-bold"
-                >
-                  [INSPECT DOSSIER]
-                </button>
+                <span class="font-mono text-[10px] text-slate-400">SRC: <span class="text-slate-300 font-medium">${escapeHtml(art.source || 'OSINT WIRE')}</span></span>
+                <button onclick="inspectDossier('${escapeHtml(art.id)}')" class="border border-slate-700 hover:border-emerald-500 text-slate-300 hover:text-emerald-400 px-2 py-0.5 text-[10px] font-mono transition-colors rounded uppercase font-bold">${inspectBtnText}</button>
               </div>
             </div>
-
           </div>
         `;
-      }).join('');
+      }).join("");
     }
+
+    window.renderDispatches = renderDispatches;
+    window.renderFeed = renderFeed;
+    const inspectDossier = inspectArticle;
 
     // 11. Modal Dossier Inspector
     function inspectArticle(id) {

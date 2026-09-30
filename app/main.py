@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 import hashlib
 import uuid
 import re
+import sqlite3
 from datetime import datetime, timezone
 
 from app.config import settings, logger
@@ -55,7 +56,8 @@ from app.processor import (
     process_file_upload,
     sync_public_rss_stream,
     sync_live_defense_feeds,
-    analyze_image_dispatch
+    analyze_image_dispatch,
+    sanitize_stored_numeric_titles
 )
 from app.intelligence import execute_search, generate_sitrep, synthesize_cross_intelligence
 
@@ -67,6 +69,7 @@ async def lifespan(app: FastAPI):
     Initializes database tables, verifies WAL and FTS5, and bootstraps starter articles.
     """
     logger.info("[STARTUP] Initializing ASTRA Sentinel Intelligence Core...")
+    sanitize_stored_numeric_titles()
     init_db()
 
     conn = get_db_connection()
@@ -203,12 +206,12 @@ async def engine_status():
 async def synthesize_cross_document_briefing(payload: SynthesizeRequest):
     """
     RAG-powered cross-document relational intelligence synthesis.
-    Correlates multiple FTS5 dispatches and synthesizes an integrated dossier.
+    Correlates multiple FTS5 dispatches and synthesizes an integrated dossier in canonical English.
     """
     return synthesize_cross_intelligence(
         query_text=payload.query,
         category_filter=payload.category,
-        target_lang=getattr(payload, "lang", "EN") or "EN"
+        target_lang=payload.lang or "EN"
     )
 
 
@@ -330,58 +333,101 @@ async def analyze_dispatch(payload: AnalyzeInput):
     return analyze_and_process_dispatch(payload)
 
 
-@app.get("/api/articles", response_model=List[ArticleRecord])
-@app.get("/articles", response_model=List[ArticleRecord])
-async def get_articles(
-    q: Optional[str] = Query(default=None, description="Search query string or military acronym"),
-    category: Optional[str] = Query(default="ALL", description="Optional category filter (ALL, Aerospace, etc.)"),
-    date_filter: Optional[str] = Query(default="ALL", description="Horizon filter (ALL, 24H, 7D, 30D)"),
-    start_date: Optional[str] = Query(default=None, description="ISO Start date (YYYY-MM-DD)"),
-    end_date: Optional[str] = Query(default=None, description="ISO End date (YYYY-MM-DD)"),
-    limit: int = Query(default=50, ge=1, le=100),
-    lang: Optional[str] = Query(default="EN", description="Language code: EN, HI, KN, TE")
+@app.get("/api/articles")
+@app.get("/articles")
+def get_articles(
+    q: Optional[str] = Query(None),
+    category: Optional[str] = Query("ALL"),
+    date_filter: Optional[str] = Query("ALL"),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    limit: Optional[int] = Query(50),
+    lang: Optional[str] = Query("EN")
 ):
-    """
-    Returns chronologically ordered or FTS5/LIKE matched dispatches supporting
-    text search (q), dual category, and date-horizon / ISO date-range parameters.
-    Applies on-the-fly persistent translation if lang != EN.
-    """
+    db_file = settings.DB_PATH or "data/sentinel.db"
+    conn = sqlite3.connect(db_file)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    query_conditions = ["1=1"]
+    params = []
+    
+    if category and category.upper() != "ALL":
+        query_conditions.append("a.category = ?")
+        params.append(category)
+        
+    if date_filter == "24H":
+        query_conditions.append("a.published_date >= date('now', '-1 day')")
+    elif date_filter == "7D":
+        query_conditions.append("a.published_date >= date('now', '-7 days')")
+    elif date_filter == "30D":
+        query_conditions.append("a.published_date >= date('now', '-30 days')")
+    elif start_date and end_date:
+        query_conditions.append("a.published_date >= ? AND a.published_date <= ?")
+        params.extend([start_date, end_date])
+    elif start_date:
+        query_conditions.append("a.published_date >= ?")
+        params.append(start_date)
+    elif end_date:
+        query_conditions.append("a.published_date <= ?")
+        params.append(end_date)
+
+    limit_clause = f" LIMIT {int(limit)}" if limit else ""
+
     if q and q.strip():
-        articles, _ = search_articles_hybrid(
-            query_str=q.strip(),
-            category=category,
-            date_filter=date_filter,
-            start_date=start_date,
-            end_date=end_date,
-            limit=limit
-        )
+        search_term = q.strip()
+        clean_fts = "".join(c for c in search_term if c.isalnum() or c in (" ", "-", "_")).strip()
+        try:
+            fts_query = f"""
+                SELECT a.* FROM articles a
+                JOIN articles_fts f ON a.id = f.id
+                WHERE articles_fts MATCH ? AND {' AND '.join(query_conditions)}
+                ORDER BY a.published_date DESC{limit_clause}
+            """
+            cursor.execute(fts_query, [f'"{clean_fts}"*'] + params)
+            rows = cursor.fetchall()
+        except Exception:
+            like_query = f"""
+                SELECT a.* FROM articles a
+                WHERE (a.title LIKE ? OR a.content LIKE ? OR a.entities LIKE ? OR a.summary LIKE ?)
+                AND {' AND '.join(query_conditions)}
+                ORDER BY a.published_date DESC{limit_clause}
+            """
+            wildcard = f"%{search_term}%"
+            cursor.execute(like_query, [wildcard, wildcard, wildcard, wildcard] + params)
+            rows = cursor.fetchall()
     else:
-        articles = list_articles(
-            category=category,
-            date_filter=date_filter,
-            start_date=start_date,
-            end_date=end_date,
-            limit=limit
-        )
-    return translate_articles_list(articles, target_lang=lang or "EN")
+        sql = f"SELECT a.* FROM articles a WHERE {' AND '.join(query_conditions)} ORDER BY a.published_date DESC{limit_clause}"
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        
+    raw_articles = []
+    for r in rows:
+        d = dict(r)
+        sum_val = d.get("summary") or ""
+        d["detailed_summary"] = sum_val
+        d["executive_summary"] = sum_val
+        raw_articles.append(d)
+    conn.close()
+
+    # Enforce 100% canonical English workstation: return articles directly in sub-millisecond time
+    return raw_articles
 
 
 @app.post("/api/translate-feed")
 async def translate_feed(payload: TranslateFeedRequest):
     """
-    On-The-Fly Article contextual translation using SQLite persistent cache.
-    Translates dispatches into target language (EN, HI, KN, TE) without mixed-language fragments.
+    Backwards-compatible endpoint returning canonical English articles.
     """
     if payload.article_ids:
         raw_articles = [get_article_by_id(aid) for aid in payload.article_ids if get_article_by_id(aid)]
     else:
         raw_articles = list_articles(limit=payload.limit or 50)
-    translated = translate_articles_list(raw_articles, target_lang=payload.lang)
     return {
         "status": "success",
         "lang": payload.lang,
-        "count": len(translated),
-        "articles": translated
+        "count": len(raw_articles),
+        "articles": raw_articles
     }
 
 

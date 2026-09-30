@@ -22,6 +22,15 @@ class ArticleIngestInput(BaseModel):
     content: str = Field(..., min_length=20, description="Raw intelligence content or wire text")
     source: Optional[str] = Field(default="OSINT Dispatch", description="Feed, agency, or publication source")
     date: Optional[str] = Field(default=None, description="Report date or timestamp in ISO-8601 format")
+    published_date: Optional[str] = Field(default=None, description="Alternative report date field")
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_published_date(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("date") and data.get("published_date"):
+                data["date"] = data["published_date"]
+        return data
 
     @field_validator("title", "content")
     @classmethod
