@@ -107,6 +107,7 @@ def _fallback_translate_single(text: str, target_lang: str) -> str:
     High-fidelity deterministic fallback translation for military dispatches
     when Gemini API key is absent or offline.
     Preserves military platforms, acronyms, and technical parameters intact.
+    Never outputs repetitive generic placeholders.
     """
     if not text or not text.strip():
         return text
@@ -150,24 +151,75 @@ def _fallback_translate_single(text: str, target_lang: str) -> str:
     if key in known_translations:
         return known_translations[key]
 
-    platforms = [
-        "LCA Tejas Mk1A", "LCA Tejas", "Uttam AESA Radar", "AESA Radar", "AESA", "S-400 Triumf", "S-400",
-        "BrahMos-II", "BrahMos", "Project 75I", "INS Vikrant", "INS Arighat", "INS Dunagiri", "DRDO",
-        "P-8I Neptune", "P-8I", "MQ-9B SkyGuardian", "MQ-9B", "K9 Vajra", "Mach 6", "Agni-5", "MIRV",
-        "Mission Divyastra", "Su-30MKI", "Rafale-M", "Rafale", "Zorawar", "CERT-In", "PWSA Tranche 1"
-    ]
+    # If text already contains Indic script matching target, return directly
+    if tgt == "HI" and re.search(r'[\u0900-\u097F]', text):
+        return text
+    if tgt == "KN" and re.search(r'[\u0C80-\u0CFF]', text):
+        return text
+    if tgt == "TE" and re.search(r'[\u0C00-\u0C7F]', text):
+        return text
+    if tgt == "TA" and re.search(r'[\u0B80-\u0BFF]', text):
+        return text
 
-    templates = {
-        "HI": ("{platform} {action} - रक्षा परिचालन एवं सामरिक निगरानी अद्यतन।", "सफलतापूर्वक तैनात और परीक्षण किया गया"),
-        "KN": ("{platform} {action} - ರಕ್ಷಣಾ ಕಾರ್ಯಾಚರಣೆ ಮತ್ತು ತಂತ್ರಜ್ಞಾನ ನವೀಕರಣ.", "ಯಶಸ್ವಿಯಾಗಿ ನಿಯೋಜಿಸಲಾಗಿದೆ ಮತ್ತು ಪರೀಕ್ಷಿಸಲಾಗಿದೆ"),
-        "TE": ("{platform} {action} - రక్షణ కార్యకలాపాలు మరియు వ్యూహాత్మక నిఘా నవీకరణ.", "విజయవంతంగా మోహరించబడింది మరియు పరీక్షించబడింది"),
-        "TA": ("{platform} {action} - பாதுகாப்பு செயல்பாடுகள் மற்றும் உத்திசார் கண்காணிப்பு புதுப்பிப்பு.", "வெற்றிகரமாக நிலைநிறுத்தப்பட்டு சோதிக்கப்பட்டது")
+    # Common defence terminology dictionary replacements (preserving real dates, citations, and platforms)
+    glossary = {
+        "KN": [
+            ("Technical evaluation for", "ತಾಂತ್ರಿಕ ಮೌಲ್ಯಮಾಪನ:"),
+            ("Initial technical evaluation and armor inspection completed for", "ಪ್ರಾಥಮಿಕ ತಾಂತ್ರಿಕ ಮೌಲ್ಯಮಾಪನ ಮತ್ತು ರಕ್ಷಾಕವಚ ಪರಿಶೀಲನೆ ಪೂರ್ಣಗೊಂಡಿದೆ:"),
+            ("Mobility and transmission stress assessment logged across tactical polygon", "ಚಲನಶೀಲತೆ ಮತ್ತು ಟ್ರಾನ್ಸ್‌ಮಿಷನ್ ಒತ್ತಡ ಮೌಲ್ಯಮಾಪನ ದಾಖಲಿಸಲಾಗಿದೆ"),
+            ("Regarding the operational inquiry on", "ಕಾರ್ಯಾಚರಣೆಯ ವಿಚಾರಣೆ ಕುರಿತು:"),
+            ("Regarding the operational outcome:", "ಕಾರ್ಯಾಚರಣೆಯ ಫಲಿತಾಂಶ:"),
+            ("Regarding the operational timeline:", "ಕಾರ್ಯಾಚರಣೆಯ ಕಾಲಾನುಕ್ರಮ:"),
+            ("Regarding the operational inquiry:", "ಕಾರ್ಯಾಚರಣೆಯ ವಿಚಾರಣೆ:"),
+            ("Based on indexed dispatch", "ದಾಖಲಿತ ವರದಿಯ ಆಧಾರದ ಮೇಲೆ"),
+            ("Correlated intelligence in dispatch", "ಸಂಬಂಧಿತ ಗುಪ್ತಚರ ದಾಖಲೆ"),
+            ("confirms active developments involving", "ಸಕ್ರಿಯ ಬೆಳವಣಿಗೆಗಳನ್ನು ದೃಢಪಡಿಸುತ್ತದೆ:"),
+            ("Primary platform observations:", "ಪ್ರಮುಖ ವೇದಿಕೆ ವೀಕ್ಷಣೆಗಳು:"),
+            ("Identified entities and assets include", "ಗುರುತಿಸಲಾದ ಘಟಕಗಳು ಮತ್ತು ಸ್ವತ್ತುಗಳು:"),
+            ("successfully deployed and tested", "ಯಶಸ್ವಿಯಾಗಿ ನಿಯೋಜಿಸಲಾಗಿದೆ ಮತ್ತು ಪರೀಕ್ಷಿಸಲಾಗಿದೆ"),
+            ("deployed for operational air defence", "ಕಾರ್ಯಾಚರಣಾ ವಾಯು ರಕ್ಷಣೆಗಾಗಿ ನಿಯೋಜಿಸಲಾಗಿದೆ"),
+            ("air defense", "ವಾಯು ರಕ್ಷಣೆ"),
+            ("exercise", "ಅಭ್ಯಾಸ"),
+            ("missile", "ಕ್ಷಿಪಣಿ"),
+            ("frigate", "ಫ್ರಿಗೇಟ್"),
+            ("submarine", "ಜಲಾಂತರ್ಗಾಮಿ")
+        ],
+        "HI": [
+            ("Technical evaluation for", "तकनीकी मूल्यांकन:"),
+            ("Initial technical evaluation and armor inspection completed for", "प्रारंभिक तकनीकी मूल्यांकन और कवच निरीक्षण पूर्ण हुआ:"),
+            ("Mobility and transmission stress assessment logged across tactical polygon", "गतिशीलता और ट्रांसमिशन तनाव मूल्यांकन दर्ज किया गया"),
+            ("Regarding the operational inquiry on", "परिचालन पूछताछ के संबंध में:"),
+            ("Regarding the operational outcome:", "परिचालन परिणाम:"),
+            ("Regarding the operational timeline:", "परिचालन समयरेखा:"),
+            ("Regarding the operational inquiry:", "परिचालन पूछताछ:"),
+            ("Based on indexed dispatch", "अनुक्रमित प्रेषण के आधार पर"),
+            ("Correlated intelligence in dispatch", "संबंधित खुफिया रिपोर्ट"),
+            ("confirms active developments involving", "सक्रिय घटनाक्रम की पुष्टि करता है:"),
+            ("Primary platform observations:", "प्राथमिक अवलोकन:"),
+            ("Identified entities and assets include", "पहचाने गए घटक और संपत्तियां:"),
+            ("successfully deployed and tested", "सफलतापूर्वक तैनात और परीक्षण किया गया"),
+            ("deployed for operational air defence", "परिचालन वायु रक्षा के लिए तैनात"),
+            ("air defense", "वायु रक्षा"),
+            ("exercise", "अभ्यास"),
+            ("missile", "मिसाइल"),
+            ("frigate", "फ्रिगेट"),
+            ("submarine", "पनडुब्बी")
+        ],
+        "TE": [
+            ("Technical evaluation for", "సాంకేతిక మూల్యాంకనం:"),
+            ("Regarding the operational inquiry on", "కార్యాచరణ విచారణకు సంబంధించి:"),
+            ("Regarding the operational outcome:", "కార్యాచరణ ఫలితం:"),
+            ("Regarding the operational timeline:", "కార్యాచరణ కాలక్రమం:"),
+            ("successfully deployed and tested", "విజయవంతంగా మోహరించబడింది మరియు పరీక్షించబడింది"),
+            ("deployed for operational air defence", "కార్యాచరణ వైమానిక రక్షణ కోసం మోహరించబడింది")
+        ]
     }
 
-    found_platform = next((p for p in platforms if p.lower() in text.lower()), "ASTRA-CORE")
-    if tgt in templates:
-        tmpl, act = templates[tgt]
-        return tmpl.format(platform=found_platform, action=act)
+    if tgt in glossary:
+        res = text
+        for en_term, target_term in glossary[tgt]:
+            res = res.replace(en_term, target_term)
+        return res
 
     return text
 

@@ -473,5 +473,55 @@ def test_multilingual_engine_and_language_toggle(client: TestClient):
     assert "cited_article_ids" in sitrep_data
 
 
+def test_sitrep_direct_technical_qa_and_zero_placeholders(client: TestClient):
+    """
+    Verifies:
+    1. Direct answer mandate for technical inquiries (Landsverk L 60 defects).
+    2. Executive Assessment directly outlines technical limitations/defects for the queried platform.
+    3. Chronological Developments shows distinct timeline points with real dates and [REF: ID] tags.
+    4. Zero repeated placeholder text ('ASTRA-CORE successfully deployed and tested' or Kannada equivalent).
+    5. Works across both Kannada (KN) and English (EN).
+    """
+    # 1. Test in Kannada (KN)
+    query = "Landsverk L 60 make list of all its deffect"
+    res_kn = client.post("/api/intel/synthesize", json={"query": query, "lang": "KN"})
+    assert res_kn.status_code == 200
+    data_kn = res_kn.json()
+
+    # Executive assessment outlines technical limitations/defects
+    assessment_kn = data_kn["executive_assessment"]
+    assert "Landsverk L 60" in assessment_kn
+    assert "ನ್ಯೂನತೆ" in assessment_kn or "ಮೌಲ್ಯಮಾಪನ" in assessment_kn or "defect" in assessment_kn.lower()
+    
+    # Assert zero canned placeholder repetition
+    assert "ಯಶಸ್ವಿಯಾಗಿ ನಿಯೋಜಿಸಲಾಗಿದೆ ಮತ್ತು ಪರೀಕ್ಷಿಸಲಾಗಿದೆ - ರಕ್ಷಣಾ ಕಾರ್ಯಾಚರಣೆ" not in assessment_kn
+
+    # Chronological developments have distinct dates and citations
+    timeline_kn = data_kn["chronological_developments"]
+    assert len(timeline_kn) >= 2
+    # Ensure distinct items (no identical repeated lines)
+    assert len(set(timeline_kn)) == len(timeline_kn)
+    for item in timeline_kn:
+        assert "[REF:" in item
+        assert "ASTRA-CORE ಯಶಸ್ವಿಯಾಗಿ ನಿಯೋಜಿಸಲಾಗಿದೆ" not in item
+
+    # 2. Test in English (EN)
+    res_en = client.post("/api/intel/synthesize", json={"query": query, "lang": "EN"})
+    assert res_en.status_code == 200
+    data_en = res_en.json()
+
+    assessment_en = data_en["executive_assessment"]
+    assert "Landsverk L 60" in assessment_en
+    assert "defect" in assessment_en.lower() or "operational constraints" in assessment_en.lower()
+    assert "ASTRA-CORE successfully deployed and tested" not in assessment_en
+
+    timeline_en = data_en["chronological_developments"]
+    assert len(timeline_en) >= 2
+    assert len(set(timeline_en)) == len(timeline_en)
+    for item in timeline_en:
+        assert "[REF:" in item
+
+
+
 
 
