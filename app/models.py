@@ -50,6 +50,10 @@ class StructuredExtraction(BaseModel):
         default=None,
         description="Substantive 4 to 5 sentence operational debrief (interchangeable with detailed_summary)."
     )
+    summary: Optional[str] = Field(
+        default="",
+        description="Summary alias for API backwards compatibility."
+    )
     threat_impact: str = Field(..., description="LOW, MEDIUM, HIGH, or CRITICAL")
     keywords: List[str] = Field(
         ...,
@@ -76,6 +80,7 @@ class StructuredExtraction(BaseModel):
                 data["detailed_summary"] = resolved
             if not data.get("executive_summary"):
                 data["executive_summary"] = resolved
+            data["summary"] = resolved
         return data
 
 
