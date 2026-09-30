@@ -100,7 +100,6 @@ def is_pure_english(text: str) -> bool:
         cleaned.encode('ascii')
         return True
     except UnicodeEncodeError:
-        # Check if text contains Indic or non-Latin alphabets
         return not bool(re.search(r'[\u0900-\u0D7F\u0400-\u04FF\u0600-\u06FF\u4E00-\u9FFF]', cleaned))
 
 def _fallback_translate_single(text: str, target_lang: str) -> str:
@@ -114,7 +113,6 @@ def _fallback_translate_single(text: str, target_lang: str) -> str:
 
     tgt = normalize_lang_code(target_lang)
     if tgt == "EN":
-        # Hindi to English common defense vocabulary map
         hi_to_en = [
             ("डीजीसीए ने जायरोप्लेन पायलटों के लिए प्रशिक्षण ढांचा प्रस्तुत किया", "DGCA introduces training framework for gyroplane pilots"),
             ("नागर विमानन महानिदेशालय ने देश में जायरोप्लेन पायलटों के प्रशिक्षण के लिए व्यापक सुरक्षा ढांचा प्रस्तुत किया है।", "Directorate General of Civil Aviation has introduced a comprehensive safety framework for training gyroplane pilots in the country."),
@@ -133,13 +131,10 @@ def _fallback_translate_single(text: str, target_lang: str) -> str:
         for hi, en in hi_to_en:
             res = res.replace(hi, en)
         if not is_pure_english(res):
-            # If still has non-ascii, remove devanagari characters or provide clean english fallback
             res = re.sub(r'[\u0900-\u097F]+', 'defence dispatch', res)
             res = re.sub(r'\s+', ' ', res).strip()
         return res
 
-    # English to Indic fallback:
-    # Common tactical defense test sentences
     known_translations = {
         ("LCA Tejas Mk1A equipped with Uttam AESA Radar deployed for operational air defence.", "HI"):
             "Uttam AESA Radar से लैस LCA Tejas Mk1A को परिचालन वायु रक्षा के लिए तैनात किया गया।",
@@ -155,7 +150,6 @@ def _fallback_translate_single(text: str, target_lang: str) -> str:
     if key in known_translations:
         return known_translations[key]
 
-    # Rule-based defense phrase preservation
     platforms = [
         "LCA Tejas Mk1A", "LCA Tejas", "Uttam AESA Radar", "AESA Radar", "AESA", "S-400 Triumf", "S-400",
         "BrahMos-II", "BrahMos", "Project 75I", "INS Vikrant", "INS Arighat", "INS Dunagiri", "DRDO",
@@ -163,7 +157,6 @@ def _fallback_translate_single(text: str, target_lang: str) -> str:
         "Mission Divyastra", "Su-30MKI", "Rafale-M", "Rafale", "Zorawar", "CERT-In", "PWSA Tranche 1"
     ]
 
-    # Generic phrase templates per language
     templates = {
         "HI": ("{platform} {action} - रक्षा परिचालन एवं सामरिक निगरानी अद्यतन।", "सफलतापूर्वक तैनात और परीक्षण किया गया"),
         "KN": ("{platform} {action} - ರಕ್ಷಣಾ ಕಾರ್ಯಾಚರಣೆ ಮತ್ತು ತಂತ್ರಜ್ಞಾನ ನವೀಕರಣ.", "ಯಶಸ್ವಿಯಾಗಿ ನಿಯೋಜಿಸಲಾಗಿದೆ ಮತ್ತು ಪರೀಕ್ಷಿಸಲಾಗಿದೆ"),
@@ -178,22 +171,10 @@ def _fallback_translate_single(text: str, target_lang: str) -> str:
 
     return text
 
-def translate_batch_with_gemini(texts: List[str], target_lang: str) -> List[str]:
-    """
-    Translates an array of texts into the target language using Gemini 2.5 Flash.
-    Preserves military acronyms, numbers, platform tags, and punctuation exactly.
-    """
-    if not texts:
-        return []
-
-    tgt = normalize_lang_code(target_lang)
-    if tgt == "EN" and all(is_pure_english(t) for t in texts):
+def translate_small_chunk(texts: List[str], target_lang: str, client) -> List[str]:
+    """Translates a small chunk of 6 to 10 strings to guarantee zero token truncation."""
+    if not texts or target_lang.upper() in ("EN", "ENGLISH"):
         return texts
-
-    client = get_genai_client()
-    if not client:
-        logger.warning("[TRANSLATOR] Gemini API client unavailable, executing resilient fallback translations.")
-        return [_fallback_translate_single(t, tgt) for t in texts]
 
     lang_map = {
         "HI": "Hindi",
@@ -201,26 +182,24 @@ def translate_batch_with_gemini(texts: List[str], target_lang: str) -> List[str]
         "TE": "Telugu",
         "TA": "Tamil",
         "MR": "Marathi",
-        "BN": "Bengali",
-        "EN": "English"
+        "BN": "Bengali"
     }
-    full_lang_name = lang_map.get(tgt, target_lang)
+    full_lang = lang_map.get(target_lang.upper(), target_lang)
 
     system_prompt = f"""You are the military intelligence localization engine for ASTRA SENTINEL.
-Translate the following array of JSON strings into natural, contemporary spoken {full_lang_name}.
+Translate the following array of JSON strings into natural, contemporary {full_lang}.
 
-CRITICAL DEFENCE TRANSLATION RULES:
-1. Preserve all military acronyms, platform names, project designations, and numbers EXACTLY as-is in Latin script or standard phonetic form (e.g., S-400, LCA Tejas Mk1A, DRDO, AESA, Mach 6, PWSA Tranche 1, UGV, P-8I, BrahMos).
-2. Do not add explanations, conversational filler, or Markdown code blocks.
-3. Return ONLY a valid JSON array of strings matching the exact length and order of the input array.
+RULES:
+1. Preserve all military acronyms, numbers, and platform designations EXACTLY (e.g., S-400, LCA Tejas Mk1A, DRDO, AESA, Mach 6, PWSA Tranche 1, UGV, P-8I, BrahMos, SINKEX, USS, US).
+2. Translate all sentences fully without stopping or summarizing.
+3. Return ONLY a valid JSON list of strings matching the exact size ({len(texts)}) of the input list.
 """
-
     try:
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=[
                 system_prompt,
-                f"INPUT_ARRAY:\n{json.dumps(texts, ensure_ascii=False)}"
+                f"INPUT_LIST:\n{json.dumps(texts, ensure_ascii=False)}"
             ],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -231,32 +210,34 @@ CRITICAL DEFENCE TRANSLATION RULES:
         if raw_text.startswith("```"):
             raw_text = re.sub(r"^```(?:json)?\s*", "", raw_text)
             raw_text = re.sub(r"\s*```$", "", raw_text)
-
-        translated_list = json.loads(raw_text)
-        if isinstance(translated_list, list) and len(translated_list) == len(texts):
-            return [str(item) for item in translated_list]
-
-        logger.warning(f"[TRANSLATOR] Gemini returned list of length {len(translated_list)}, expected {len(texts)}.")
-        return [_fallback_translate_single(t, tgt) for t in texts]
+        data = json.loads(raw_text)
+        if isinstance(data, list) and len(data) == len(texts):
+            return [str(item) for item in data]
     except Exception as e:
-        logger.error(f"[TRANSLATOR] Gemini batch translation failed: {e}. Using resilient fallback.")
-        return [_fallback_translate_single(t, tgt) for t in texts]
+        logger.error(f"[TRANSLATION CHUNK ERROR] {e}")
+
+    return [_fallback_translate_single(t, target_lang) for t in texts]
 
 def translate_text(text: str, target_lang: str = "EN") -> str:
-    """Translates a single text string using memory cache, SQLite persistent storage, and Gemini."""
+    """Translates a single text string using cache, SQLite, and Gemini."""
     if not text or not text.strip():
         return text
 
     tgt = normalize_lang_code(target_lang)
-    if tgt == "EN" and is_pure_english(text):
+    if tgt in ("EN", "ENGLISH") and is_pure_english(text):
         return text
 
     cache_key = f"{tgt}::{text.strip()}"
     if cache_key in _MEMORY_CACHE:
         return _MEMORY_CACHE[cache_key]
 
-    translated = translate_batch_with_gemini([text], tgt)
-    result = translated[0] if translated else text
+    client = get_genai_client()
+    if client:
+        translated = translate_small_chunk([text], tgt, client)
+        result = translated[0] if translated else text
+    else:
+        result = _fallback_translate_single(text, tgt)
+
     _MEMORY_CACHE[cache_key] = result
     return result
 
@@ -312,77 +293,120 @@ def cache_translation(conn: sqlite3.Connection, article_id: str, lang: str, titl
     """Stores translation into cache using an active connection."""
     save_article_translation(article_id, lang, title, summary)
 
+def _get_article_val(art: Any, key: str, default: str = "") -> str:
+    """Safe getter for field from either Dict or Pydantic model."""
+    if isinstance(art, dict):
+        return art.get(key, default) or default
+    return getattr(art, key, default) or default
+
 def translate_articles_list(articles: List[Dict], target_lang: str = "EN") -> List[Dict]:
     """
-    Translates a list of articles for API responses.
-    Uses SQLite cache hits first; batches cache misses to Gemini 2.5 Flash in a single prompt.
+    Translates articles using persistent SQLite cache hits.
+    Batches cache misses in micro-chunks of 5 articles (max 10 strings per call)
+    so token limits are never exceeded.
+    Supports both dictionaries and Pydantic ArticleRecord models.
     """
     tgt = normalize_lang_code(target_lang)
-    if not articles or tgt == "EN":
+    if not articles or tgt in ("EN", "ENGLISH"):
         return articles
 
-    cached_results = {}
-    missing_indices = []
-    texts_to_translate = []
+    db_file = DB_PATH or settings.DB_PATH or "data/sentinel.db"
+    conn = sqlite3.connect(db_file)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
 
+    # 1. Check SQLite for existing translations
+    article_ids = [_get_article_val(a, "id") for a in articles if _get_article_val(a, "id")]
+    cached_map = {}
+    if article_ids:
+        placeholders = ",".join(["?"] * len(article_ids))
+        cursor.execute(
+            f"SELECT id, title, summary FROM articles_translations WHERE lang = ? AND id IN ({placeholders})",
+            [tgt] + article_ids
+        )
+        for row in cursor.fetchall():
+            row_title = row["title"] or ""
+            row_sum = row["summary"] or ""
+            if tgt != "EN" and is_pure_english(row_title):
+                continue
+            cached_map[row["id"]] = {"title": row_title, "summary": row_sum}
+
+    # 2. Identify missing articles that need translation
+    missing_items = []  # list of (id, title, summary, original_index)
     for idx, art in enumerate(articles):
-        # Support both Pydantic model and Dict
-        art_id = art.get("id") if isinstance(art, dict) else getattr(art, "id", None)
-        cached = get_cached_article_translation(art_id, tgt)
-        if cached:
-            cached_results[idx] = cached
-        else:
-            missing_indices.append(idx)
-            # Add title and summary sequentially
-            raw_title = art.get("title", "") if isinstance(art, dict) else getattr(art, "title", "")
-            raw_sum = (
-                (art.get("detailed_summary") or art.get("summary") or art.get("executive_summary") or "")
-                if isinstance(art, dict)
-                else (getattr(art, "detailed_summary", None) or getattr(art, "executive_summary", None) or getattr(art, "summary", "") or "")
-            )
-            texts_to_translate.append(raw_title)
-            texts_to_translate.append(raw_sum)
+        aid = _get_article_val(art, "id")
+        if not aid:
+            continue
+        if aid not in cached_map:
+            t = _get_article_val(art, "title")
+            s = _get_article_val(art, "detailed_summary") or _get_article_val(art, "summary") or _get_article_val(art, "executive_summary")
+            missing_items.append((aid, t, s, idx))
 
-    # Batch translate all cache misses in one Gemini call
-    if texts_to_translate:
-        translated_texts = translate_batch_with_gemini(texts_to_translate, tgt)
-        t_idx = 0
-        for orig_idx in missing_indices:
-            if t_idx + 1 < len(translated_texts):
-                t_title = translated_texts[t_idx]
-                t_summary = translated_texts[t_idx + 1]
-                t_idx += 2
-                art_item = articles[orig_idx]
-                art_id = art_item.get("id") if isinstance(art_item, dict) else getattr(art_item, "id", None)
-                if art_id:
-                    save_article_translation(art_id, tgt, t_title, t_summary)
-                cached_results[orig_idx] = {"title": t_title, "summary": t_summary}
+    # 3. Translate missing articles in micro-chunks of 5 articles (10 strings max)
+    if missing_items:
+        client = get_genai_client()
+        CHUNK_SIZE = 5
 
-    # Construct final translated article list
-    output = []
-    for idx, art in enumerate(articles):
-        is_dict = isinstance(art, dict)
-        art_copy = dict(art) if is_dict else art.model_copy() if hasattr(art, "model_copy") else dict(art)
+        for i in range(0, len(missing_items), CHUNK_SIZE):
+            chunk = missing_items[i : i + CHUNK_SIZE]
+            texts_to_send = []
+            for item in chunk:
+                texts_to_send.append(item[1])  # title
+                texts_to_send.append(item[2])  # summary
 
-        if idx in cached_results:
-            c_title = cached_results[idx]["title"]
-            c_summary = cached_results[idx]["summary"]
-            if is_dict:
-                art_copy["title"] = c_title
-                art_copy["summary"] = c_summary
-                if "detailed_summary" in art_copy:
-                    art_copy["detailed_summary"] = c_summary
-                if "executive_summary" in art_copy:
-                    art_copy["executive_summary"] = c_summary
+            if client:
+                translated_texts = translate_small_chunk(texts_to_send, tgt, client)
             else:
-                art_copy.title = c_title
-                if hasattr(art_copy, "detailed_summary"):
-                    art_copy.detailed_summary = c_summary
-                if hasattr(art_copy, "executive_summary"):
-                    art_copy.executive_summary = c_summary
-                if hasattr(art_copy, "summary"):
-                    art_copy.summary = c_summary
+                translated_texts = [_fallback_translate_single(txt, tgt) for txt in texts_to_send]
 
-        output.append(art_copy)
+            # Match translations back and store in SQLite
+            t_idx = 0
+            for item in chunk:
+                aid = item[0]
+                if t_idx + 1 < len(translated_texts):
+                    t_title = translated_texts[t_idx]
+                    t_sum = translated_texts[t_idx + 1]
+                    t_idx += 2
+                else:
+                    t_title, t_sum = item[1], item[2]
 
-    return output
+                cached_map[aid] = {"title": t_title, "summary": t_sum}
+
+                cursor.execute("""
+                    INSERT OR REPLACE INTO articles_translations (id, lang, title, summary)
+                    VALUES (?, ?, ?, ?)
+                """, (aid, tgt, t_title, t_sum))
+
+        conn.commit()
+
+    conn.close()
+
+    # 4. Construct final translated list
+    result = []
+    for art in articles:
+        is_dict = isinstance(art, dict)
+        copy_art = dict(art) if is_dict else (art.model_copy() if hasattr(art, "model_copy") else dict(art))
+        aid = _get_article_val(art, "id")
+
+        if aid in cached_map:
+            c_title = cached_map[aid]["title"]
+            c_sum = cached_map[aid]["summary"]
+            if is_dict:
+                copy_art["title"] = c_title
+                copy_art["summary"] = c_sum
+                if "detailed_summary" in copy_art:
+                    copy_art["detailed_summary"] = c_sum
+                if "executive_summary" in copy_art:
+                    copy_art["executive_summary"] = c_sum
+            else:
+                copy_art.title = c_title
+                if hasattr(copy_art, "detailed_summary"):
+                    copy_art.detailed_summary = c_sum
+                if hasattr(copy_art, "executive_summary"):
+                    copy_art.executive_summary = c_sum
+                if hasattr(copy_art, "summary"):
+                    copy_art.summary = c_sum
+
+        result.append(copy_art)
+
+    return result

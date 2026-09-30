@@ -164,11 +164,11 @@
       
       <!-- Left: Official ASTRA Logo, Title & Unit Badge -->
       <div class="flex items-center gap-3">
-        <img src="/static/img/astra_logo.svg" alt="ASTRA Emblem" class="h-7 w-auto object-contain brightness-110" />
+        <img src="/static/img/astra_logo.svg" alt="ASTRA Emblem" class="h-8 w-auto object-contain brightness-110" />
         <div>
-          <div class="flex items-center gap-2">
-            <span id="headerTitle" class="font-mono text-xs font-bold text-emerald-400 tracking-wider">ASTRA SENTINEL // TACTICAL OSINT</span>
-            <span class="border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] font-mono text-slate-300 font-medium">BMSIT&M DEFENCE TECH</span>
+          <div class="flex items-center gap-2 py-1">
+            <span id="headerTitle" class="font-mono text-sm font-bold text-emerald-400 tracking-wider leading-relaxed">ASTRA SENTINEL // TACTICAL OSINT</span>
+            <span class="border border-slate-700 bg-slate-900 px-2 py-0.5 text-[10px] font-mono text-slate-300 font-medium whitespace-nowrap">BMSIT&M DEFENCE TECH</span>
             <span id="navStatusDot" class="hidden"></span>
           </div>
           <p class="font-mono text-[10px] text-slate-500 uppercase tracking-wider">Tactical OSINT &amp; Information Monitoring Workstation</p>
@@ -714,7 +714,7 @@
         uploadBtn: "[अपलोड एवं खुफिया जानकारी निकालें]"
       },
       KN: {
-        title: "ಅಸ್ತ್ರಾ ಸೆಂಟಿನೆಲ್ // ರಕ್ಷಣಾ ಮಾಹಿತಿ ಮಾನಿಟರ್",
+        title: "ರಾಷ್ಟ್ರ ಸೆಂಟ್ನೆಲ್ // ರಕ್ಷಣಾ ಮಾಹಿತಿ ಮಾನಿಟರ್",
         searchPlaceholder: "ಕ್ಷಿಪಣಿ, ರಾಡಾರ್ ಅಥವಾ ಪ್ರಮುಖ ಪದವನ್ನು ನಮೂದಿಸಿ...",
         tab1: "[೧. ಪಠ್ಯ ಮತ್ತು RSS ಫೀಡ್]",
         tab2: "[೨. ಮಲ್ಟಿಮಾಡಲ್ ಸೆನ್ಸರ್ (PDF / ಚಿತ್ರಗಳು)]",
@@ -1381,7 +1381,7 @@
             <!-- Title -->
             <h3 
               onclick="inspectArticle('${escapeHtml(art.id)}')" 
-              class="text-sm font-bold text-white font-sans hover:text-emerald-400 cursor-pointer transition-colors leading-snug"
+              class="text-sm font-bold text-white font-sans hover:text-emerald-400 cursor-pointer transition-colors leading-snug py-0.5"
             >
               ${escapeHtml(art.title)}
             </h3>
