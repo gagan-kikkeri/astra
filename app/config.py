@@ -47,6 +47,10 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+# Direct exports
+DB_PATH = settings.DB_PATH
+MODEL_NAME = settings.MODEL_NAME
+
 # Ensure parent directory for database exists
 db_path = Path(settings.DB_PATH)
 db_path.parent.mkdir(parents=True, exist_ok=True)

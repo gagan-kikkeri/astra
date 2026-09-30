@@ -450,7 +450,15 @@ def process_and_ingest_article(article_in: ArticleIngestInput) -> ArticleRecord:
     Standard ingestion pipeline for backwards compatibility with tests and batch operations.
     Computes SHA-256 and checks duplicate collision gate.
     """
-    content_hash = compute_content_hash(article_in.title, article_in.content)
+    from app.translator import is_pure_english, translate_text
+
+    raw_title = article_in.title.strip()
+    raw_content = article_in.content.strip()
+
+    title = translate_text(raw_title, target_lang="EN") if not is_pure_english(raw_title) else raw_title
+    content = translate_text(raw_content, target_lang="EN") if not is_pure_english(raw_content) else raw_content
+
+    content_hash = compute_content_hash(title, content)
 
     existing = get_article_by_hash(content_hash)
     if existing:
@@ -462,7 +470,7 @@ def process_and_ingest_article(article_in: ArticleIngestInput) -> ArticleRecord:
             detail=f"Collision detected / DUPLICATE DETECTED: Dispatch already exists with hash {content_hash[:8]} under ID {existing.id}."
         )
 
-    extraction, _ = triage_with_gemini(article_in.title, article_in.content)
+    extraction, _ = triage_with_gemini(title, content)
 
     now_utc = datetime.now(timezone.utc)
     article_id = f"AST-{uuid.uuid4().hex[:8].upper()}"
@@ -527,6 +535,12 @@ def analyze_and_process_dispatch(payload: AnalyzeInput) -> AnalyzeResponse:
             status_code=422,
             detail="Content must be at least 20 characters for intelligence triage."
         )
+
+    from app.translator import is_pure_english, translate_text
+    if not is_pure_english(title):
+        title = translate_text(title, target_lang="EN")
+    if not is_pure_english(content):
+        content = translate_text(content, target_lang="EN")
 
     # Compute deterministic SHA-256 fingerprint
     content_hash = compute_content_hash(title, content)
