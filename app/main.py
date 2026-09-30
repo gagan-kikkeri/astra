@@ -33,8 +33,10 @@ from app.models import (
     AnalyzeResponse,
     SynthesizeRequest,
     CrossDocumentSynthesisResponse,
-    SyncFeedResponse
+    SyncFeedResponse,
+    TranslateFeedRequest
 )
+from app.translator import translate_articles_list
 from app.database import (
     init_db,
     get_db_connection,
@@ -203,7 +205,11 @@ async def synthesize_cross_document_briefing(payload: SynthesizeRequest):
     RAG-powered cross-document relational intelligence synthesis.
     Correlates multiple FTS5 dispatches and synthesizes an integrated dossier.
     """
-    return synthesize_cross_intelligence(query_text=payload.query, category_filter=payload.category)
+    return synthesize_cross_intelligence(
+        query_text=payload.query,
+        category_filter=payload.category,
+        target_lang=getattr(payload, "lang", "EN") or "EN"
+    )
 
 
 @app.post("/api/ingest", response_model=ArticleRecord, status_code=status.HTTP_200_OK)
@@ -329,11 +335,13 @@ async def get_articles(
     date_filter: Optional[str] = Query(default="ALL", description="Horizon filter (ALL, 24H, 7D, 30D)"),
     start_date: Optional[str] = Query(default=None, description="ISO Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(default=None, description="ISO End date (YYYY-MM-DD)"),
-    limit: int = Query(default=50, ge=1, le=100)
+    limit: int = Query(default=50, ge=1, le=100),
+    lang: Optional[str] = Query(default="EN", description="Language code: EN, HI, KN, TE")
 ):
     """
     Returns chronologically ordered or FTS5/LIKE matched dispatches supporting
     text search (q), dual category, and date-horizon / ISO date-range parameters.
+    Applies on-the-fly persistent translation if lang != EN.
     """
     if q and q.strip():
         articles, _ = search_articles_hybrid(
@@ -344,26 +352,50 @@ async def get_articles(
             end_date=end_date,
             limit=limit
         )
-        return articles
-    return list_articles(
-        category=category,
-        date_filter=date_filter,
-        start_date=start_date,
-        end_date=end_date,
-        limit=limit
-    )
+    else:
+        articles = list_articles(
+            category=category,
+            date_filter=date_filter,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit
+        )
+    return translate_articles_list(articles, target_lang=lang or "EN")
+
+
+@app.post("/api/translate-feed")
+async def translate_feed(payload: TranslateFeedRequest):
+    """
+    On-The-Fly Article contextual translation using SQLite persistent cache.
+    Translates dispatches into target language (EN, HI, KN, TE) without mixed-language fragments.
+    """
+    if payload.article_ids:
+        raw_articles = [get_article_by_id(aid) for aid in payload.article_ids if get_article_by_id(aid)]
+    else:
+        raw_articles = list_articles(limit=payload.limit or 50)
+    translated = translate_articles_list(raw_articles, target_lang=payload.lang)
+    return {
+        "status": "success",
+        "lang": payload.lang,
+        "count": len(translated),
+        "articles": translated
+    }
 
 
 @app.get("/api/articles/{article_id}", response_model=ArticleRecord)
-async def get_single_article(article_id: str):
-    """Retrieves a specific dispatch by its unique alphanumeric ID."""
+async def get_single_article(
+    article_id: str,
+    lang: Optional[str] = Query(default="EN", description="Language code: EN, HI, KN, TE")
+):
+    """Retrieves a specific dispatch by its unique alphanumeric ID, with optional translation."""
     article = get_article_by_id(article_id)
     if not article:
         raise HTTPException(
             status_code=404,
             detail=f"Intelligence record {article_id} not found in database."
         )
-    return article
+    translated = translate_articles_list([article], target_lang=lang or "EN")
+    return translated[0]
 
 
 @app.get("/api/search", response_model=SearchResponse)
@@ -373,13 +405,14 @@ async def search_wire(
     date_filter: Optional[str] = Query(default=None, description="Horizon filter (ALL, 24H, 7D, 30D)"),
     start_date: Optional[str] = Query(default=None, description="ISO Start date"),
     end_date: Optional[str] = Query(default=None, description="ISO End date"),
-    limit: int = Query(default=50, ge=1, le=100, description="Max results")
+    limit: int = Query(default=50, ge=1, le=100, description="Max results"),
+    lang: Optional[str] = Query(default="EN", description="Language code: EN, HI, KN, TE")
 ):
     """
     Query bar endpoint executing BM25-ranked FTS5 searches
     with microsecond execution latency readout and SQL LIKE fallback.
     """
-    return execute_search(
+    res = execute_search(
         query_str=q,
         category=category,
         date_filter=date_filter,
@@ -387,6 +420,9 @@ async def search_wire(
         end_date=end_date,
         limit=limit
     )
+    if lang and lang.strip().upper() != "EN":
+        res.articles = translate_articles_list(res.articles, target_lang=lang)
+    return res
 
 
 @app.post("/api/sitrep", response_model=SitRepResponse)

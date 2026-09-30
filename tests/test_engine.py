@@ -420,5 +420,58 @@ def test_dynamic_categories_and_deep_operational_briefing(client: TestClient):
     assert "Quantum Defense" in updated_list
 
 
+def test_multilingual_engine_and_language_toggle(client: TestClient):
+    """
+    Tests:
+    1. UI Header contains Tactical Language Switcher buttons (EN, HI, KN, TE).
+    2. Zero mixed-language fragments in English triage for Indic inputs.
+    3. Multilingual feed querying with ?lang=HI and /api/translate-feed.
+    4. Multilingual SitRep dossier synthesis in Hindi.
+    """
+    # 1. UI Language Switcher HTML
+    res_root = client.get("/")
+    assert res_root.status_code == 200
+    html = res_root.text
+    assert "lang-EN" in html
+    assert "lang-HI" in html
+    assert "lang-KN" in html
+    assert "lang-TE" in html
+    assert "UI_TRANSLATIONS" in html
+    assert "setSystemLanguage" in html
+
+    # 2. Ingestion language unification: Hindi headline is translated cleanly into English
+    from app.processor import triage_dispatch_payload
+    hindi_title = "डीजीसीए ने जायरोप्लेन पायलटों के लिए प्रशिक्षण ढांचा प्रस्तुत किया"
+    hindi_content = "नागर विमानन महानिदेशालय ने देश में जायरोप्लेन पायलटों के प्रशिक्षण के लिए व्यापक सुरक्षा ढांचा प्रस्तुत किया है।"
+    extraction = triage_dispatch_payload(hindi_title, hindi_content, target_lang="English")
+    assert extraction.category
+    assert extraction.threat_impact
+    assert extraction.detailed_summary
+    # Title and summary must be unified in English
+    assert not any('\u0900' <= ch <= '\u097f' for ch in extraction.detailed_summary), "Summary should be translated to English"
+
+    # 3. API Articles with language query parameter
+    res_hi = client.get("/api/articles?limit=3&lang=HI")
+    assert res_hi.status_code == 200
+    hi_articles = res_hi.json()
+    assert isinstance(hi_articles, list)
+
+    # 4. Translate feed endpoint
+    res_trans = client.post("/api/translate-feed", json={"lang": "HI", "limit": 2})
+    assert res_trans.status_code == 200
+    trans_data = res_trans.json()
+    assert trans_data["status"] == "success"
+    assert trans_data["lang"] == "HI"
+    assert "articles" in trans_data
+
+    # 5. Multilingual SitRep dossier
+    sitrep_res = client.post("/api/sitrep", json={"topic": "Naval operations", "lang": "HI"})
+    assert sitrep_res.status_code == 200
+    sitrep_data = sitrep_res.json()
+    assert sitrep_data["topic"]
+    assert sitrep_data["executive_assessment"]
+    assert "cited_article_ids" in sitrep_data
+
+
 
 

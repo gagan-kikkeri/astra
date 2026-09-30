@@ -83,15 +83,25 @@ def synthesize_operational_debrief(title: str, content: str, category: str, enti
     """
     Synthesizes an authoritative, comprehensive 4 to 5 sentence Detailed Operational Brief
     covering operational context, platform capabilities, tactical significance, and geopolitical/strategic implications.
+    Linguistically unified in pure English.
     """
-    raw_sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', content.strip()) if len(s.strip()) > 15]
+    from app.translator import is_pure_english, translate_text
+
+    clean_title = title.strip()
+    if not is_pure_english(clean_title):
+        clean_title = translate_text(clean_title, target_lang="EN")
+
+    clean_content = content.strip()
+    if not is_pure_english(clean_content):
+        clean_content = translate_text(clean_content, target_lang="EN")
+
+    raw_sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', clean_content) if len(s.strip()) > 15]
 
     if len(raw_sentences) >= 4:
         # Use existing high-quality sentences up to 5
         return " ".join(raw_sentences[:5])
 
     # Construct authoritative 4-to-5 sentence debrief
-    clean_title = title.strip()
     primary_entity = entities[0] if entities else "designated platform"
     secondary_entity = entities[1] if len(entities) > 1 else "allied command systems"
 
@@ -996,9 +1006,71 @@ REAL_DEFENCE_FEEDS = [
 ]
 
 
-def triage_dispatch_payload(title: str, content: str) -> StructuredExtraction:
-    """Autonomous Neural Classification & Triage (Gemini 2.5 Flash / dynamic local synthesis)."""
-    extraction, _ = triage_with_gemini(title, content)
+def triage_dispatch_payload(title: str, content: str, target_lang: str = "English") -> StructuredExtraction:
+    """
+    Autonomous Multilingual Neural Classification & Triage (Gemini 2.5 Flash / dynamic local synthesis).
+    Ensures complete linguistic unification without mixed-language fragments.
+    """
+    from app.intelligence import get_genai_client
+    client = get_genai_client()
+    if client:
+        try:
+            prompt = f"""You are the Lead Intelligence Officer for ASTRA SENTINEL.
+Analyze this defense intelligence dispatch:
+
+INPUT TITLE: {title}
+INPUT CONTENT: {content}
+
+OPERATIONAL DIRECTIVES:
+1. TARGET LANGUAGE: Everything in your output must be written STRICTLY in {target_lang}.
+   - If the input is in Hindi, Russian, or any other language and target is English: TRANSLATE AND UNIFY the title and summary into professional defense English.
+   - If target is Hindi: Write the title and summary in formal, natural Hindi (Devanagari script).
+   - NEVER output half-translated text or mix English boilerplate with regional text.
+2. FORMULATE DETAILED DEBRIEF: Provide a factual 3 to 4 sentence operational summary covering technical specifics, testing, and military implications in {target_lang}.
+3. CATEGORIZE: Select from standard domains or formulate a relevant concise domain in {target_lang}.
+4. ENTITIES: Extract platform names, government agencies, and branches normalized accurately.
+"""
+            response = client.models.generate_content(
+                model=settings.MODEL_NAME,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=StructuredExtraction,
+                    temperature=0.1
+                )
+            )
+            if response.text:
+                return StructuredExtraction.model_validate_json(response.text)
+        except Exception as e:
+            logger.warning(f"[GEMINI TRIAGE FAIL] {e}. Falling back to resilient multilingual triage.")
+
+    # Resilient local multilingual triage
+    from app.translator import translate_text, normalize_lang_code, is_pure_english
+    norm_lang = normalize_lang_code(target_lang)
+
+    # If target is English but input contains non-Latin scripts, translate title & content to English first
+    if norm_lang == "EN" and (not is_pure_english(title) or not is_pure_english(content)):
+        trans_title = translate_text(title, target_lang="EN")
+        trans_content = translate_text(content, target_lang="EN")
+    else:
+        trans_title = title
+        trans_content = content
+
+    extraction, _ = triage_with_gemini(trans_title, trans_content)
+
+    # If target is regional (HI, KN, TE), translate the output fields
+    if norm_lang != "EN":
+        trans_title_regional = translate_text(trans_title, target_lang=norm_lang)
+        trans_summary_regional = translate_text(
+            extraction.detailed_summary or extraction.executive_summary or "",
+            target_lang=norm_lang
+        )
+        extraction.title = trans_title_regional
+        extraction.detailed_summary = trans_summary_regional
+        extraction.executive_summary = trans_summary_regional
+    else:
+        extraction.title = trans_title
+
     return extraction
 
 
@@ -1010,6 +1082,7 @@ def sync_live_defense_feeds(limit_per_feed: int = 3) -> dict:
     """
     import sqlite3
     import requests
+    from app.translator import cache_translation, detect_dominant_script
 
     db_path = settings.DB_PATH or "data/sentinel.db"
     conn = sqlite3.connect(db_path, timeout=15.0)
@@ -1038,6 +1111,7 @@ def sync_live_defense_feeds(limit_per_feed: int = 3) -> dict:
             if not entries:
                 continue
 
+            feed_ingested = 0
             for entry in entries:
                 title = entry.get("title", "").strip()
                 # Clean HTML tags from summary/content if present
@@ -1070,11 +1144,22 @@ def sync_live_defense_feeds(limit_per_feed: int = 3) -> dict:
 
                 # Autonomous Neural Classification & Triage (Gemini 2.5 Flash / dynamic engine)
                 # Extracts: category (dynamic or standard), detailed_summary, threat_impact, entities, keywords
-                extraction = triage_dispatch_payload(title, clean_content)
+                extraction = triage_dispatch_payload(title, clean_content, target_lang="English")
+
+                # If extraction provided a translated/unified English title, use it
+                resolved_title = extraction.title if (extraction.title and len(extraction.title) >= 5) else title
 
                 record_id = f"AST-LIVE-{content_hash[:8].upper()}"
                 now_str = datetime.now(timezone.utc).isoformat()
                 summary_val = extraction.detailed_summary or extraction.executive_summary or ""
+
+                # If raw title was in regional script (e.g. PIB Hindi), cache original in articles_translations
+                detected_lang = detect_dominant_script(title)
+                if detected_lang != "EN":
+                    try:
+                        cache_translation(conn, record_id, detected_lang, title, summary_val)
+                    except Exception:
+                        pass
 
                 cursor.execute("""
                     INSERT INTO articles (
@@ -1084,7 +1169,7 @@ def sync_live_defense_feeds(limit_per_feed: int = 3) -> dict:
                 """, (
                     record_id,
                     content_hash,
-                    title,
+                    resolved_title,
                     clean_content,
                     extraction.category,
                     summary_val,
@@ -1102,7 +1187,7 @@ def sync_live_defense_feeds(limit_per_feed: int = 3) -> dict:
 
                 record_dict = {
                     "id": record_id,
-                    "title": title,
+                    "title": resolved_title,
                     "category": extraction.category,
                     "published_date": published_date,
                     "summary": summary_val,
@@ -1118,7 +1203,7 @@ def sync_live_defense_feeds(limit_per_feed: int = 3) -> dict:
                 art_record = ArticleRecord(
                     id=record_id,
                     content_hash=content_hash,
-                    title=title,
+                    title=resolved_title,
                     content=clean_content,
                     category=extraction.category,
                     detailed_summary=summary_val,

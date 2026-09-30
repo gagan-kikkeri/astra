@@ -167,7 +167,7 @@
         <img src="/static/img/astra_logo.svg" alt="ASTRA Emblem" class="h-7 w-auto object-contain brightness-110" />
         <div>
           <div class="flex items-center gap-2">
-            <span class="font-mono text-xs font-bold text-emerald-400 tracking-wider">ASTRA SENTINEL // TACTICAL OSINT</span>
+            <span id="headerTitle" class="font-mono text-xs font-bold text-emerald-400 tracking-wider">ASTRA SENTINEL // TACTICAL OSINT</span>
             <span class="border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] font-mono text-slate-300 font-medium">BMSIT&M DEFENCE TECH</span>
             <span id="navStatusDot" class="hidden"></span>
           </div>
@@ -175,8 +175,18 @@
         </div>
       </div>
 
-      <!-- Right: Engine Pill & Active Database Telemetry -->
+      <!-- Right: Language Switcher, Engine Pill & Active Database Telemetry -->
       <div class="flex items-center gap-2 font-mono text-xs">
+        
+        <!-- Tactical Language Switcher -->
+        <div class="flex items-center gap-1 border border-slate-700 bg-slate-900/80 px-2 py-1 font-mono text-[10px] rounded">
+          <span class="text-slate-400 uppercase tracking-wider mr-1">LANG:</span>
+          <button onclick="setSystemLanguage('EN')" id="lang-EN" class="lang-btn px-1.5 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold rounded">EN</button>
+          <button onclick="setSystemLanguage('HI')" id="lang-HI" class="lang-btn px-1.5 py-0.5 border border-slate-800 text-slate-400 hover:text-white rounded">HI</button>
+          <button onclick="setSystemLanguage('KN')" id="lang-KN" class="lang-btn px-1.5 py-0.5 border border-slate-800 text-slate-400 hover:text-white rounded">KN</button>
+          <button onclick="setSystemLanguage('TE')" id="lang-TE" class="lang-btn px-1.5 py-0.5 border border-slate-800 text-slate-400 hover:text-white rounded">TE</button>
+        </div>
+
         <span id="engineBadge" class="px-2.5 py-1 rounded border border-emerald-500/70 bg-emerald-950/40 text-emerald-400 font-bold text-[11px] shadow-sm shadow-emerald-950">
           ● ENGINE: ASTRA-CORE [ONLINE]
         </span>
@@ -676,6 +686,106 @@
       }
     };
 
+    // =========================================================================
+    // MULTILINGUAL TACTICAL TRANSLATION ENGINE & UI DICTIONARY
+    // =========================================================================
+    const UI_TRANSLATIONS = {
+      EN: {
+        title: "ASTRA SENTINEL // TACTICAL OSINT",
+        searchPlaceholder: "Type military acronym, platform (UAV, AESA, Torpedo), or keyword...",
+        tab1: "[1. TEXT & RSS DISPATCH]",
+        tab2: "[2. MULTIMODAL SENSORS (PDF / IMAGES)]",
+        tab3: "[3. AUTONOMOUS INTEL BRIEFING]",
+        syncBtn: "[⚡ SYNC LIVE PUBLIC OSINT STREAM]",
+        transmitBtn: "[TRANSMIT & TRIAGE DISPATCH]",
+        briefBtn: "[GENERATE STRATEGIC BRIEF]",
+        uploadBtn: "[UPLOAD & EXTRACT INTELLIGENCE]"
+      },
+      HI: {
+        title: "एस्ट्रा सेंटिनल // सामरिक आसूचना टर्मिनल",
+        searchPlaceholder: "सैन्य संक्षिप्त नाम, हथियार या कीवर्ड दर्ज करें...",
+        tab1: "[१. पाठ एवं आरएसएस डिस्पैच]",
+        tab2: "[२. मल्टीमॉडल सेंसर (पीडीएफ / चित्र)]",
+        tab3: "[३. स्वायत्त सामरिक ब्रीफिंग]",
+        syncBtn: "[⚡ सार्वजनिक ओसिंट स्ट्रीम सिंक करें]",
+        transmitBtn: "[डिस्पैच ट्रांसमिट एवं जांच करें]",
+        briefBtn: "[रणनीतिक रिपोर्ट तैयार करें]",
+        uploadBtn: "[अपलोड एवं खुफिया जानकारी निकालें]"
+      },
+      KN: {
+        title: "ಅಸ್ತ್ರಾ ಸೆಂಟಿನೆಲ್ // ರಕ್ಷಣಾ ಮಾಹಿತಿ ಮಾನಿಟರ್",
+        searchPlaceholder: "ಕ್ಷಿಪಣಿ, ರಾಡಾರ್ ಅಥವಾ ಪ್ರಮುಖ ಪದವನ್ನು ನಮೂದಿಸಿ...",
+        tab1: "[೧. ಪಠ್ಯ ಮತ್ತು RSS ಫೀಡ್]",
+        tab2: "[೨. ಮಲ್ಟಿಮಾಡಲ್ ಸೆನ್ಸರ್ (PDF / ಚಿತ್ರಗಳು)]",
+        tab3: "[೩. ತಂತ್ರಜ್ಞಾನ ಬ್ರೀಫಿಂಗ್]",
+        syncBtn: "[⚡ ಲೈವ್ ರಕ್ಷಣಾ ಫೀಡ್ ಸಿಂಕ್ ಮಾಡಿ]",
+        transmitBtn: "[ದಾಖಲೆ ಕಳುಹಿಸಿ & ಪರಿಶೀಲಿಸಿ]",
+        briefBtn: "[ವರದಿ ತಯಾರಿಸಿ]",
+        uploadBtn: "[ಅಪ್‌ಲೋಡ್ ಮತ್ತು ಮಾಹಿತಿ ಸಂಗ್ರಹ]"
+      },
+      TE: {
+        title: "ఆస్ట్రా సెంటినెల్ // వ్యూహాత్మక నిఘా టెర్మినల్",
+        searchPlaceholder: "క్షిపణి, రాడార్ లేదా కీలక పదాన్ని నమోదు చేయండి...",
+        tab1: "[౧. టెక్స్ట్ & RSS ఫీడ్]",
+        tab2: "[౨. మల్టీమోడల్ సెన్సార్లు (PDF / చిత్రాలు)]",
+        tab3: "[౩. స్వయంప్రతిపత్తి ఇంటెల్ బ్రీఫింగ్]",
+        syncBtn: "[⚡ లైవ్ రక్షణ ఫీడ్ సమకాలీకరించండి]",
+        transmitBtn: "[డిస్పాచ్ పంపండి & విశ్లేషించండి]",
+        briefBtn: "[వ్యూహాత్మక నివేదిక రూపొందించండి]",
+        uploadBtn: "[అప్‌లోడ్ & ఇంటెల్ వెలికితీత]"
+      }
+    };
+
+    window.currentLang = 'EN';
+
+    function setSystemLanguage(lang) {
+      window.currentLang = lang;
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.className = "lang-btn px-1.5 py-0.5 border border-slate-800 text-slate-400 hover:text-white rounded";
+      });
+      const activeBtn = document.getElementById(`lang-${lang}`);
+      if (activeBtn) {
+        activeBtn.className = "lang-btn px-1.5 py-0.5 border border-emerald-500 bg-emerald-950/40 text-emerald-400 font-bold rounded";
+      }
+      
+      // Update UI Labels
+      applyUILanguage(lang);
+      
+      // Re-fetch feed with translated text parameter
+      triggerSearchAndFilter();
+    }
+
+    function applyUILanguage(lang) {
+      const dict = UI_TRANSLATIONS[lang] || UI_TRANSLATIONS.EN;
+
+      const titleEl = document.getElementById('headerTitle');
+      if (titleEl) titleEl.textContent = dict.title;
+
+      const searchInput = document.getElementById('recon-search-input');
+      if (searchInput) searchInput.placeholder = dict.searchPlaceholder;
+
+      const tab1 = document.getElementById('tab-btn-text');
+      if (tab1) tab1.innerHTML = dict.tab1;
+
+      const tab2 = document.getElementById('tab-btn-file');
+      if (tab2) tab2.innerHTML = dict.tab2;
+
+      const tab3 = document.getElementById('tab-btn-rag');
+      if (tab3) tab3.innerHTML = dict.tab3;
+
+      const syncBtn = document.getElementById('syncRssLabel');
+      if (syncBtn) syncBtn.textContent = dict.syncBtn;
+
+      const transmitBtn = document.getElementById('transmitLabel');
+      if (transmitBtn) transmitBtn.textContent = dict.transmitBtn;
+
+      const briefBtn = document.getElementById('sitrepLabel');
+      if (briefBtn) briefBtn.textContent = dict.briefBtn;
+
+      const uploadBtn = document.getElementById('uploadLabel');
+      if (uploadBtn) uploadBtn.textContent = dict.uploadBtn;
+    }
+
     // Initialization
     function initConsole() {
       window.activeCategory = 'ALL';
@@ -686,6 +796,7 @@
       if (dateInput) {
         dateInput.value = new Date().toISOString().split('T')[0];
       }
+      applyUILanguage(window.currentLang || 'EN');
       loadTelemetry();
       loadCategoryRibbon();
       fetchDispatches();
@@ -830,13 +941,15 @@
       const searchVal = document.getElementById('recon-search-input') ? document.getElementById('recon-search-input').value.trim() : '';
       const categoryVal = window.activeCategory || currentCategory || 'ALL';
       const horizonVal = window.activeHorizon || currentDateFilter || 'ALL';
+      const langVal = window.currentLang || 'EN';
       const readout = document.getElementById('filterCountReadout');
       const startTime = performance.now();
 
       const params = new URLSearchParams({
         q: searchVal,
         category: categoryVal,
-        date_filter: horizonVal
+        date_filter: horizonVal,
+        lang: langVal
       });
 
       try {
@@ -847,7 +960,7 @@
         renderFeed(data);
         if (readout) {
           const elapsed = (performance.now() - startTime).toFixed(1);
-          readout.textContent = `Showing ${data.length} matches | Latency: ${elapsed}ms`;
+          readout.textContent = `Showing ${data.length} matches [LANG: ${langVal}] | Latency: ${elapsed}ms`;
         }
       } catch (err) {
         console.error("Search error:", err);
@@ -859,7 +972,8 @@
     // 5. Initial Dispatch Fetch
     async function fetchDispatches() {
       try {
-        const res = await fetch('/api/articles?limit=50');
+        const langVal = window.currentLang || 'EN';
+        const res = await fetch(`/api/articles?limit=50&lang=${encodeURIComponent(langVal)}`);
         if (res.ok) {
           const articles = await res.json();
           articlesCache = articles;
@@ -1130,7 +1244,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             query: query,
-            category: category === 'ALL' ? null : category
+            category: category === 'ALL' ? null : category,
+            lang: window.currentLang || 'EN'
           })
         });
 

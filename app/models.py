@@ -105,6 +105,7 @@ class SynthesizeRequest(BaseModel):
     """Inquiry payload for cross-document intelligence synthesis."""
     query: str = Field(..., min_length=3, description="Natural language operator inquiry")
     category: Optional[str] = Field(default=None, description="Optional taxonomy category filter")
+    lang: Optional[str] = Field(default="EN", description="Target briefing language (EN, HI, KN, TE)")
 
     @field_validator("query")
     @classmethod
@@ -113,6 +114,13 @@ class SynthesizeRequest(BaseModel):
         if not stripped:
             raise ValueError("Inquiry cannot be empty.")
         return stripped
+
+
+class TranslateFeedRequest(BaseModel):
+    """Payload to translate articles list to target language."""
+    lang: str = Field(default="EN", description="Target language code: EN, HI, KN, TE")
+    limit: Optional[int] = Field(default=50, ge=1, le=100)
+    article_ids: Optional[List[str]] = Field(default=None, description="Optional explicit article IDs")
 
 
 class AgentStep(BaseModel):
@@ -173,6 +181,7 @@ class SitRepRequest(BaseModel):
     topic: str = Field(..., min_length=1, description="Tactical topic or theater query")
     category: Optional[str] = Field(default=None, description="Optional taxonomy filter")
     max_articles: int = Field(default=5, ge=1, le=20, description="Maximum dispatches to analyze")
+    lang: Optional[str] = Field(default="EN", description="Target briefing language (EN, HI, KN, TE)")
 
     @field_validator("topic")
     @classmethod

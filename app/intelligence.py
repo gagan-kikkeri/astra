@@ -288,7 +288,8 @@ def deterministic_cross_synthesis(
 def synthesize_cross_intelligence(
     query_text: str,
     domain_filter: Optional[str] = None,
-    category_filter: Optional[str] = None
+    category_filter: Optional[str] = None,
+    target_lang: str = "EN"
 ) -> CrossDocumentSynthesisResponse:
     """
     RAG-powered cross-document relational synthesis:
@@ -331,54 +332,71 @@ INSTRUCTIONS:
 6. Chronological developments must list only events directly relevant to the queried subject."""
 
     client = get_genai_client()
+    res: Optional[CrossDocumentSynthesisResponse] = None
+
     if not client or not settings.has_gemini_key:
         logger.info("[SYNTHESIS] Gemini unconfigured/offline. Executing deterministic direct-QA synthesis.")
-        return deterministic_cross_synthesis(query_text, dispatches)
+        res = deterministic_cross_synthesis(query_text, dispatches)
+    else:
+        max_retries = 3
+        base_backoff = 1.0
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                config = types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=CrossDocumentSynthesisResponse,
+                    temperature=0.1
+                )
+                response = client.models.generate_content(
+                    model=settings.MODEL_NAME,
+                    contents=system_prompt,
+                    config=config
+                )
 
-    max_retries = 3
-    base_backoff = 1.0
-    last_error = None
-    for attempt in range(1, max_retries + 1):
-        try:
-            config = types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=CrossDocumentSynthesisResponse,
-                temperature=0.1
-            )
-            response = client.models.generate_content(
-                model=settings.MODEL_NAME,
-                contents=system_prompt,
-                config=config
-            )
+                if response.parsed:
+                    parsed_res: CrossDocumentSynthesisResponse = response.parsed
+                    if not parsed_res.referenced_dispatch_ids and dispatches:
+                        parsed_res.referenced_dispatch_ids = [d["id"] for d in dispatches]
+                    res = parsed_res
+                    break
 
-            if response.parsed:
-                parsed_res: CrossDocumentSynthesisResponse = response.parsed
-                if not parsed_res.referenced_dispatch_ids and dispatches:
-                    parsed_res.referenced_dispatch_ids = [d["id"] for d in dispatches]
-                return parsed_res
+                if response.text:
+                    parsed_json = CrossDocumentSynthesisResponse.model_validate_json(response.text)
+                    if not parsed_json.referenced_dispatch_ids and dispatches:
+                        parsed_json.referenced_dispatch_ids = [d["id"] for d in dispatches]
+                    res = parsed_json
+                    break
 
-            if response.text:
-                res = CrossDocumentSynthesisResponse.model_validate_json(response.text)
-                if not res.referenced_dispatch_ids and dispatches:
-                    res.referenced_dispatch_ids = [d["id"] for d in dispatches]
-                return res
+                raise ValueError("Empty response received from Gemini model.")
 
-            raise ValueError("Empty response received from Gemini model.")
+            except Exception as e:
+                last_error = e
+                wait_time = base_backoff * (2 ** (attempt - 1))
+                logger.warning(
+                    f"[GEMINI SYNTHESIS RETRY] Attempt {attempt}/{max_retries} failed ({e}). "
+                    f"Retrying in {wait_time}s..."
+                )
+                if attempt < max_retries:
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"[GEMINI SYNTHESIS EXHAUSTED] Activating fail-safe deterministic cross-synthesis ({last_error}).")
+                    res = deterministic_cross_synthesis(query_text, dispatches)
+                    break
 
-        except Exception as e:
-            last_error = e
-            wait_time = base_backoff * (2 ** (attempt - 1))
-            logger.warning(
-                f"[GEMINI SYNTHESIS RETRY] Attempt {attempt}/{max_retries} failed ({e}). "
-                f"Retrying in {wait_time}s..."
-            )
-            if attempt < max_retries:
-                time.sleep(wait_time)
-            else:
-                logger.error(f"[GEMINI SYNTHESIS EXHAUSTED] Activating fail-safe deterministic cross-synthesis ({last_error}).")
-                return deterministic_cross_synthesis(query_text, dispatches)
+    if not res:
+        res = deterministic_cross_synthesis(query_text, dispatches)
 
-    return deterministic_cross_synthesis(query_text, dispatches)
+    from app.translator import normalize_lang_code, translate_text
+    lang_code = normalize_lang_code(target_lang)
+    if lang_code != "EN":
+        res.executive_assessment = translate_text(res.executive_assessment, target_lang=lang_code)
+        res.chronological_developments = [
+            translate_text(dev, target_lang=lang_code)
+            for dev in res.chronological_developments
+        ]
+
+    return res
 
 
 def deterministic_sitrep_briefing(
@@ -483,82 +501,124 @@ def generate_sitrep(request: SitRepRequest) -> SitRepResponse:
             detail="No intelligence dispatches found in Sentinel database to synthesize SitRep."
         )
 
+    rep: Optional[SitRepResponse] = None
+
     if not GENAI_AVAILABLE or not settings.has_gemini_key:
         logger.info("[SITREP] Generating deterministic tactical briefing (Offline mode).")
-        return deterministic_sitrep_briefing(request.topic, articles)
+        rep = deterministic_sitrep_briefing(request.topic, articles)
+    else:
+        client = get_genai_client()
+        if not client:
+            logger.info("[SITREP] GenAI client uninitialized. Generating deterministic tactical briefing.")
+            rep = deterministic_sitrep_briefing(request.topic, articles)
+        else:
+            context_chunks = []
+            for art in articles:
+                context_chunks.append(
+                    f"DISPATCH ID: {art.id}\n"
+                    f"DATE: {art.date or art.created_at[:10]}\n"
+                    f"CATEGORY: {art.category} | THREAT: {art.threat_impact}\n"
+                    f"ENTITIES: {', '.join(art.entities)}\n"
+                    f"TITLE: {art.title}\n"
+                    f"SUMMARY: {art.executive_summary}\n"
+                    f"CONTENT: {art.content[:600]}\n"
+                    "---"
+                )
+            grounded_context = "\n".join(context_chunks)
 
-    client = get_genai_client()
-    if not client:
-        logger.info("[SITREP] GenAI client uninitialized. Generating deterministic tactical briefing.")
-        return deterministic_sitrep_briefing(request.topic, articles)
-    context_chunks = []
-    for art in articles:
-        context_chunks.append(
-            f"DISPATCH ID: {art.id}\n"
-            f"DATE: {art.date or art.created_at[:10]}\n"
-            f"CATEGORY: {art.category} | THREAT: {art.threat_impact}\n"
-            f"ENTITIES: {', '.join(art.entities)}\n"
-            f"TITLE: {art.title}\n"
-            f"SUMMARY: {art.executive_summary}\n"
-            f"CONTENT: {art.content[:600]}\n"
-            "---"
-        )
-    grounded_context = "\n".join(context_chunks)
-
-    prompt = (
-        "You are ASTRA SENTINEL, a high-level defence intelligence briefing officer. "
-        "Synthesize a formal military Situation Report (SITREP / OPREP) strictly grounded "
-        "in the provided tactical dispatches.\n\n"
-        f"TOPIC: {request.topic}\n\n"
-        f"SOURCE DISPATCHES:\n{grounded_context}\n\n"
-        "STRICT REQUIREMENTS:\n"
-        "1. topic: The exact topic requested.\n"
-        "2. classification: Military classification banner (e.g. 'TOP SECRET // NOFORN // ASTRA-OSINT').\n"
-        "3. executive_assessment: Professional, concise military assessment synthesizing operational threat posture.\n"
-        "4. key_actors: List of specific military platforms, state actors, and defence agencies cited.\n"
-        "5. timeline: Chronological dispatches list of objects.\n"
-        "6. cited_article_ids: Strictly list the exact DISPATCH IDs (e.g. AST-...) from the source dispatches used."
-    )
-
-    max_retries = 3
-    base_backoff = 1.0
-
-    for attempt in range(1, max_retries + 1):
-        try:
-            config = types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=SitRepResponse,
-                temperature=0.2
-            )
-            response = client.models.generate_content(
-                model=settings.MODEL_NAME,
-                contents=prompt,
-                config=config
+            prompt = (
+                "You are ASTRA SENTINEL, a high-level defence intelligence briefing officer. "
+                "Synthesize a formal military Situation Report (SITREP / OPREP) strictly grounded "
+                "in the provided tactical dispatches.\n\n"
+                f"TOPIC: {request.topic}\n\n"
+                f"SOURCE DISPATCHES:\n{grounded_context}\n\n"
+                "STRICT REQUIREMENTS:\n"
+                "1. topic: The exact topic requested.\n"
+                "2. classification: Military classification banner (e.g. 'TOP SECRET // NOFORN // ASTRA-OSINT').\n"
+                "3. executive_assessment: Professional, concise military assessment synthesizing operational threat posture.\n"
+                "4. key_actors: List of specific military platforms, state actors, and defence agencies cited.\n"
+                "5. timeline: Chronological dispatches list of objects.\n"
+                "6. cited_article_ids: Strictly list the exact DISPATCH IDs (e.g. AST-...) from the source dispatches used."
             )
 
-            if response.parsed:
-                parsed_rep: SitRepResponse = response.parsed
-                if not parsed_rep.cited_article_ids:
-                    parsed_rep.cited_article_ids = [a.id for a in articles]
-                return parsed_rep
+            max_retries = 3
+            base_backoff = 1.0
 
-            if response.text:
-                rep = SitRepResponse.model_validate_json(response.text)
-                if not rep.cited_article_ids:
-                    rep.cited_article_ids = [a.id for a in articles]
-                return rep
+            for attempt in range(1, max_retries + 1):
+                try:
+                    config = types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=SitRepResponse,
+                        temperature=0.2
+                    )
+                    response = client.models.generate_content(
+                        model=settings.MODEL_NAME,
+                        contents=prompt,
+                        config=config
+                    )
 
-            raise ValueError("Empty LLM response received for SitRep synthesis.")
+                    if response.parsed:
+                        parsed_rep: SitRepResponse = response.parsed
+                        if not parsed_rep.cited_article_ids:
+                            parsed_rep.cited_article_ids = [a.id for a in articles]
+                        rep = parsed_rep
+                        break
 
-        except Exception as e:
-            wait_time = base_backoff * (2 ** (attempt - 1))
-            logger.warning(
-                f"[SITREP RETRY] Attempt {attempt}/{max_retries} failed ({e}). Retrying in {wait_time}s..."
-            )
-            if attempt < max_retries:
-                time.sleep(wait_time)
-            else:
-                logger.error("[SITREP EXHAUSTED] Falling back to deterministic SitRep briefing.")
-                return deterministic_sitrep_briefing(request.topic, articles)
+                    if response.text:
+                        parsed_json = SitRepResponse.model_validate_json(response.text)
+                        if not parsed_json.cited_article_ids:
+                            parsed_json.cited_article_ids = [a.id for a in articles]
+                        rep = parsed_json
+                        break
 
-    return deterministic_sitrep_briefing(request.topic, articles)
+                    raise ValueError("Empty LLM response received for SitRep synthesis.")
+
+                except Exception as e:
+                    wait_time = base_backoff * (2 ** (attempt - 1))
+                    logger.warning(
+                        f"[SITREP RETRY] Attempt {attempt}/{max_retries} failed ({e}). Retrying in {wait_time}s..."
+                    )
+                    if attempt < max_retries:
+                        time.sleep(wait_time)
+                    else:
+                        logger.error("[SITREP EXHAUSTED] Falling back to deterministic SitRep briefing.")
+                        rep = deterministic_sitrep_briefing(request.topic, articles)
+                        break
+
+    if not rep:
+        rep = deterministic_sitrep_briefing(request.topic, articles)
+
+    target_lang = getattr(request, "lang", "EN") or "EN"
+    from app.translator import normalize_lang_code, translate_text
+    lang_code = normalize_lang_code(target_lang)
+    if lang_code != "EN":
+        rep.topic = translate_text(rep.topic, target_lang=lang_code)
+        rep.executive_assessment = translate_text(rep.executive_assessment, target_lang=lang_code)
+        
+        # Batch check SQLite translation cache for timeline items
+        import sqlite3
+        conn = sqlite3.connect(settings.DB_PATH or "data/sentinel.db", timeout=10.0)
+        conn.row_factory = sqlite3.Row
+        from app.translator import get_cached_translations, cache_translation
+        timeline_ids = [item.get("dispatch_id") for item in rep.timeline if isinstance(item, dict) and item.get("dispatch_id")]
+        cached_tl = get_cached_translations(conn, timeline_ids, lang_code)
+
+        for item in rep.timeline:
+            if isinstance(item, dict):
+                d_id = item.get("dispatch_id")
+                if d_id and d_id in cached_tl:
+                    item["headline"] = cached_tl[d_id]["title"]
+                    item["tactical_event"] = cached_tl[d_id]["summary"]
+                else:
+                    if "headline" in item:
+                        item["headline"] = translate_text(item["headline"], target_lang=lang_code)
+                    if "tactical_event" in item:
+                        item["tactical_event"] = translate_text(item["tactical_event"], target_lang=lang_code)
+                    if d_id:
+                        try:
+                            cache_translation(conn, d_id, lang_code, item.get("headline", ""), item.get("tactical_event", ""))
+                        except Exception:
+                            pass
+        conn.close()
+
+    return rep

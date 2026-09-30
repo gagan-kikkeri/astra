@@ -88,6 +88,21 @@ def init_db() -> None:
         END;
         """)
 
+        # Multilingual Translation Cache Table
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS articles_translations (
+            id TEXT NOT NULL,
+            lang TEXT NOT NULL,
+            title TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            created_at TEXT,
+            PRIMARY KEY (id, lang)
+        );
+        """)
+        cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_art_trans_id_lang ON articles_translations(id, lang);
+        """)
+
         conn.commit()
         logger.info(f"[DATABASE] Initialized SQLite WAL storage & FTS5 triggers at: {settings.DB_PATH}")
     finally:
