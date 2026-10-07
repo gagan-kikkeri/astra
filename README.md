@@ -188,3 +188,4 @@ $ curl -s http://127.0.0.1:8000/api/health
 ## 7. Security & Privacy Posture
 * **Zero Secrets Tracked:** No `.env` files or API keys are committed to version control.
 * **Database Isolation:** SQLite storage files (`*.db`, `*.db-wal`, `*.db-shm`) are excluded via `.gitignore`.
+[![Architecture diagram of gagan-kikkeri/astra](https://gitdiagram.com/gagan-kikkeri/astra/diagram.png)](https://gitdiagram.com/gagan-kikkeri/astra?utm_source=readme&utm_medium=picture)
